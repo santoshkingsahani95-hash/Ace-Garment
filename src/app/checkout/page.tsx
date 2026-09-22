@@ -362,9 +362,38 @@ export default function CheckoutPage() {
       <Header />
 
       <main className="flex-1 max-w-7xl mx-auto px-6 py-10 w-full">
-        <h1 className="font-serif-title text-3xl md:text-4xl font-bold text-brand-dark mb-8 uppercase tracking-wider">
-          SECURE CHECKOUT
-        </h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="font-serif-title text-3xl md:text-4xl font-bold text-brand-dark uppercase tracking-wider">
+            SECURE CHECKOUT
+          </h1>
+        </div>
+
+        {/* Guest Checkout vs Account Banner */}
+        <div className="mb-8 p-4 bg-white rounded-lg border border-brand-border shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          {user ? (
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+              <span>
+                Logged in as <strong className="text-brand-dark font-semibold">{user.name}</strong> ({user.email}). Order will automatically sync to your saved account history.
+              </span>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 text-brand-dark">
+                <span className="px-2 py-0.5 bg-brand-cream text-brand-dark font-bold rounded text-[10px] uppercase font-mono border border-brand-border">
+                  GUEST CHECKOUT ACTIVE
+                </span>
+                <span>No login required! Enter your email below to receive live delivery tracking & link future orders.</span>
+              </div>
+              <Link
+                href="/login"
+                className="text-xs font-bold text-brand-gold hover:underline whitespace-nowrap uppercase tracking-wider shrink-0"
+              >
+                Sign In (Optional) →
+              </Link>
+            </>
+          )}
+        </div>
 
         <form onSubmit={handlePlaceOrder} className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           {/* Left Column: Delivery Address & Payment */}

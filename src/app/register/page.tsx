@@ -7,7 +7,9 @@ import { ArrowRight, Chrome } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { AnnouncementBar } from '@/components/layout/announcement-bar';
 import { Footer } from '@/components/layout/footer';
+import { db } from '@/lib/db';
 import { useStore } from '@/lib/store';
+import { CustomerUser } from '@/types';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -20,14 +22,16 @@ export default function RegisterPage() {
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
-    setUser({
+    const newUser: CustomerUser = {
       id: `usr-${Date.now()}`,
       name: fullName || 'New Customer',
       email: email,
       mobile: mobile,
       role: 'CUSTOMER',
       registrationDate: new Date().toISOString().split('T')[0],
-    });
+    };
+    db.saveUser(newUser);
+    setUser(newUser);
     router.push('/account');
   };
 
@@ -39,9 +43,13 @@ export default function RegisterPage() {
       <main className="flex-1 flex items-center justify-center px-6 py-16">
         <div className="w-full max-w-md bg-white p-8 md:p-10 rounded-lg border border-brand-border shadow-xl space-y-6">
           <div className="text-center space-y-2">
-            <span className="text-[11px] uppercase tracking-ultra font-bold text-brand-gold">JOIN THE ACE CLUB</span>
+            <span className="text-[11px] uppercase tracking-ultra font-bold text-brand-gold">JOIN DAISY HUB</span>
             <h1 className="font-serif-title text-3xl font-bold text-brand-dark">CREATE ACCOUNT</h1>
-            <p className="text-xs text-brand-muted">Enjoy first access to new drops, exclusive offers & order tracking.</p>
+            <p className="text-xs text-brand-muted">Account creation is optional. Registering unlocks your saved order history.</p>
+          </div>
+
+          <div className="p-3 bg-brand-cream/60 border border-brand-border rounded text-[11px] text-brand-dark">
+            ✨ <strong>Optional Registration:</strong> You can shop anytime without logging in. Registering links past and future orders matching your email.
           </div>
 
           <form onSubmit={handleRegister} className="space-y-4">

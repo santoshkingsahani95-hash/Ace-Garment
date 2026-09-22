@@ -116,6 +116,9 @@ class DataStore {
 
       const storedCoupons = localStorage.getItem('ace_db_coupons');
       if (storedCoupons) this.coupons = JSON.parse(storedCoupons);
+
+      const storedUsers = localStorage.getItem('ace_db_users');
+      if (storedUsers) this.users = JSON.parse(storedUsers);
     } catch (e) {
       console.error('Failed to load from localStorage:', e);
     }
@@ -421,6 +424,16 @@ class DataStore {
     return this.getOrders().find((o) => o.id === id || o.orderNumber === id);
   }
 
+  getOrdersByEmail(email: string): Order[] {
+    if (!email || !email.trim()) return [];
+    const clean = email.trim().toLowerCase();
+    return this.getOrders().filter((o) => {
+      const custEmail = o.customerEmail ? o.customerEmail.trim().toLowerCase() : '';
+      const shipEmail = o.shippingAddress?.email ? o.shippingAddress.email.trim().toLowerCase() : '';
+      return custEmail === clean || shipEmail === clean;
+    });
+  }
+
   createOrder(order: Order): Order {
     const ords = this.getOrders();
     ords.unshift(order);
@@ -535,7 +548,34 @@ class DataStore {
 
   // Users
   getUsers(): CustomerUser[] {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('ace_db_users');
+      if (stored) {
+        try {
+          this.users = JSON.parse(stored);
+        } catch (e) {}
+      }
+    }
     return this.users;
+  }
+
+  saveUser(user: CustomerUser): CustomerUser {
+    const usersList = this.getUsers();
+    const existingIdx = usersList.findIndex((u) => u.id === user.id || u.email.toLowerCase() === user.email.toLowerCase());
+    if (existingIdx >= 0) {
+      usersList[existingIdx] = { ...usersList[existingIdx], ...user };
+    } else {
+      usersList.push(user);
+    }
+    this.users = usersList;
+    this.saveAndBroadcast('ace_db_users', this.users);
+    return user;
+  }
+
+  findUserByEmail(email: string): CustomerUser | undefined {
+    if (!email) return undefined;
+    const clean = email.trim().toLowerCase();
+    return this.getUsers().find((u) => u.email.trim().toLowerCase() === clean);
   }
 }
 

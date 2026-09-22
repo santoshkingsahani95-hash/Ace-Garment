@@ -135,20 +135,22 @@ export const Header: React.FC = () => {
                     </div>
 
                     <div className="space-y-1 pt-1">
-                      <Link
-                        href="/admin"
-                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-brand-cream font-semibold text-brand-dark"
-                      >
-                        <Shield size={14} className="text-brand-gold" />
-                        <span>Admin Dashboard</span>
-                      </Link>
+                      {user.role === 'ADMIN' && (
+                        <Link
+                          href="/admin"
+                          className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-brand-cream font-semibold text-brand-dark"
+                        >
+                          <Shield size={14} className="text-brand-gold" />
+                          <span>Admin Dashboard</span>
+                        </Link>
+                      )}
 
                       <Link
                         href="/account"
-                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-brand-cream text-brand-dark"
+                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-brand-cream text-brand-dark font-medium"
                       >
                         <User size={14} />
-                        <span>Customer Account</span>
+                        <span>Saved Account & Orders</span>
                       </Link>
                     </div>
                   </div>

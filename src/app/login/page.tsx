@@ -7,7 +7,9 @@ import { Lock, Mail, ArrowRight, Chrome } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { AnnouncementBar } from '@/components/layout/announcement-bar';
 import { Footer } from '@/components/layout/footer';
+import { db } from '@/lib/db';
 import { useStore } from '@/lib/store';
+import { CustomerUser } from '@/types';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,24 +38,29 @@ export default function LoginPage() {
         return;
       }
 
-      setUser({
+      const adminUser: CustomerUser = {
         id: 'usr-admin-1',
         name: 'Admin Manager',
         email: email.includes('@') ? email : `${envAdminUsername}@daisyhub.com`,
         mobile: '+977 9800000000',
         role: 'ADMIN',
         registrationDate: '2026-01-01',
-      });
+      };
+      db.saveUser(adminUser);
+      setUser(adminUser);
       router.push('/admin');
     } else {
-      setUser({
-        id: 'usr-cust-1',
-        name: email ? email.split('@')[0] : 'Aayusha Karki',
-        email: email || 'aayusha.k@example.com',
+      const existing = db.findUserByEmail(email);
+      const custUser: CustomerUser = existing || {
+        id: `usr-${Date.now()}`,
+        name: email ? email.split('@')[0] : 'Daisy Customer',
+        email: email || 'customer@example.com',
         mobile: '+977 9841234567',
         role: 'CUSTOMER',
-        registrationDate: '2026-02-15',
-      });
+        registrationDate: new Date().toISOString().split('T')[0],
+      };
+      db.saveUser(custUser);
+      setUser(custUser);
       router.push('/account');
     }
   };
@@ -68,7 +75,11 @@ export default function LoginPage() {
           <div className="text-center space-y-2">
             <span className="text-[11px] uppercase tracking-ultra font-bold text-brand-gold">DAISY HUB CLUB</span>
             <h1 className="font-serif-title text-3xl font-bold text-brand-dark">WELCOME BACK</h1>
-            <p className="text-xs text-brand-muted">Sign in to your Daisy Hub account to view orders & wishlist.</p>
+            <p className="text-xs text-brand-muted">Sign in to your Daisy Hub account to unlock saved order details.</p>
+          </div>
+
+          <div className="p-3 bg-brand-cream/60 border border-brand-border rounded text-[11px] text-brand-dark">
+            💡 <strong>Optional Login:</strong> Shopping at Daisy Hub does not require logging in. Sign in here anytime to view all past orders linked to your email.
           </div>
 
           {loginError && (

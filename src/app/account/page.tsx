@@ -33,10 +33,19 @@ export default function AccountPage() {
   const [activeTab, setActiveTab] = useState<'orders' | 'wishlist' | 'profile' | 'addresses' | 'security'>('orders');
   const [userOrders, setUserOrders] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [searchEmail, setSearchEmail] = useState('');
 
   const fetchUserOrders = () => {
-    const orders = db.getOrders();
-    setUserOrders(orders);
+    const allOrders = db.getOrders();
+    if (user) {
+      if (user.role === 'ADMIN' && !searchEmail.trim()) {
+        setUserOrders(allOrders);
+        return;
+      }
+      const targetEmail = searchEmail.trim() ? searchEmail.trim() : user.email;
+      const matched = db.getOrdersByEmail(targetEmail);
+      setUserOrders(matched);
+    }
   };
 
   useEffect(() => {
@@ -151,9 +160,54 @@ export default function AccountPage() {
           <div className="lg:col-span-9 bg-white p-6 md:p-8 rounded-lg border border-brand-border shadow-sm">
             {activeTab === 'orders' && (
               <div className="space-y-6">
-                <h2 className="font-serif-title text-xl font-bold text-brand-dark uppercase tracking-wider border-b border-brand-border pb-4">
-                  ORDER HISTORY
-                </h2>
+                <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-brand-border gap-3">
+                  <div>
+                    <h2 className="font-serif-title text-xl font-bold text-brand-dark uppercase tracking-wider">
+                      SAVED ORDER HISTORY
+                    </h2>
+                    <p className="text-xs text-brand-muted mt-0.5">
+                      Showing orders linked to <strong className="text-brand-dark font-mono">{user.email}</strong>
+                    </p>
+                  </div>
+
+                  {/* Optional Email / Order Lookup input */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={searchEmail}
+                      onChange={(e) => setSearchEmail(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && fetchUserOrders()}
+                      placeholder="Find orders by guest email..."
+                      className="px-3 py-1.5 border border-brand-border rounded text-xs focus:outline-none focus:border-brand-dark w-48 md:w-56"
+                    />
+                    <button
+                      onClick={fetchUserOrders}
+                      className="px-3 py-1.5 bg-brand-dark text-white rounded text-xs font-bold uppercase tracking-wider hover:bg-brand-dark/90"
+                    >
+                      Filter
+                    </button>
+                    {searchEmail && (
+                      <button
+                        onClick={() => {
+                          setSearchEmail('');
+                          setTimeout(fetchUserOrders, 0);
+                        }}
+                        className="text-xs text-brand-muted hover:text-brand-dark font-semibold"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-brand-cream/60 rounded border border-brand-border text-xs text-brand-dark flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Package size={16} className="text-brand-gold shrink-0" />
+                    <span>
+                      <strong>Optional Login Unlocked:</strong> Any past or future order placed with <strong>{user.email}</strong> is automatically saved and viewable in this portal.
+                    </span>
+                  </div>
+                </div>
 
                 {userOrders.length === 0 ? (
                   <div className="text-center py-12 text-xs text-brand-muted space-y-3">
