@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { X, ChevronDown, User, Heart, Search, ShoppingBag } from 'lucide-react';
+import { X, ChevronDown, User, Heart, Search, ShoppingBag, Shield } from 'lucide-react';
 import { useStore } from '@/lib/store';
 
 interface MobileDrawerProps {
@@ -32,7 +32,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
         <div>
           <div className="p-5 border-b border-brand-border flex items-center justify-between">
             <Link href="/" onClick={onClose} className="font-serif-title font-bold text-xl tracking-widest text-brand-dark">
-              ACE GARMENT
+              DAISY HUB
             </Link>
             <button
               onClick={onClose}
@@ -117,7 +117,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
 
             <div className="pt-4 border-t border-brand-border space-y-3 normal-case text-xs text-brand-muted">
               <Link href="/about" onClick={onClose} className="block hover:text-brand-dark">
-                About ACE Garment
+                About Daisy Hub
               </Link>
               <Link href="/contact" onClick={onClose} className="block hover:text-brand-dark">
                 Contact & Support
@@ -131,6 +131,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
 
         {/* Bottom User Controls */}
         <div className="p-5 border-t border-brand-border bg-brand-cream/50 space-y-3">
+
           <Link
             href={isMounted && user ? '/account' : '/login'}
             onClick={onClose}

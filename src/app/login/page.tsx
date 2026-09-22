@@ -27,7 +27,7 @@ export default function LoginPage() {
     const inputLower = email.trim().toLowerCase();
     const isAdminUser =
       inputLower === envAdminUsername.toLowerCase() ||
-      inputLower === `${envAdminUsername.toLowerCase()}@acegarment.com` ||
+      inputLower === `${envAdminUsername.toLowerCase()}@daisyhub.com` ||
       inputLower.includes('admin');
 
     if (isAdminUser) {
@@ -39,7 +39,7 @@ export default function LoginPage() {
       setUser({
         id: 'usr-admin-1',
         name: 'Admin Manager',
-        email: email.includes('@') ? email : `${envAdminUsername}@acegarment.com`,
+        email: email.includes('@') ? email : `${envAdminUsername}@daisyhub.com`,
         mobile: '+977 9800000000',
         role: 'ADMIN',
         registrationDate: '2026-01-01',
@@ -66,9 +66,9 @@ export default function LoginPage() {
       <main className="flex-1 flex items-center justify-center px-6 py-16">
         <div className="w-full max-w-md bg-white p-8 md:p-10 rounded-lg border border-brand-border shadow-xl space-y-6">
           <div className="text-center space-y-2">
-            <span className="text-[11px] uppercase tracking-ultra font-bold text-brand-gold">ACE GARMENT CLUB</span>
+            <span className="text-[11px] uppercase tracking-ultra font-bold text-brand-gold">DAISY HUB CLUB</span>
             <h1 className="font-serif-title text-3xl font-bold text-brand-dark">WELCOME BACK</h1>
-            <p className="text-xs text-brand-muted">Sign in to your ACE Garment account to view orders & wishlist.</p>
+            <p className="text-xs text-brand-muted">Sign in to your Daisy Hub account to view orders & wishlist.</p>
           </div>
 
           {loginError && (

@@ -1239,32 +1239,41 @@ export const initialCMS: HomepageCMS = {
     {
       id: 'ig-1',
       imageUrl: 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?q=80&w=800&auto=format&fit=crop',
-      postUrl: 'https://instagram.com',
+      postUrl: 'https://www.instagram.com/daisy_hubnp?stkn=MTh4dTQzeGxoMXpnYg==',
     },
     {
       id: 'ig-2',
       imageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=800&auto=format&fit=crop',
-      postUrl: 'https://instagram.com',
+      postUrl: 'https://www.instagram.com/daisy_hubnp?stkn=MTh4dTQzeGxoMXpnYg==',
     },
     {
       id: 'ig-3',
       imageUrl: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?q=80&w=800&auto=format&fit=crop',
-      postUrl: 'https://instagram.com',
+      postUrl: 'https://www.instagram.com/daisy_hubnp?stkn=MTh4dTQzeGxoMXpnYg==',
     },
     {
       id: 'ig-4',
       imageUrl: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?q=80&w=800&auto=format&fit=crop',
-      postUrl: 'https://instagram.com',
+      postUrl: 'https://www.instagram.com/daisy_hubnp?stkn=MTh4dTQzeGxoMXpnYg==',
     },
     {
       id: 'ig-5',
       imageUrl: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=800&auto=format&fit=crop',
-      postUrl: 'https://instagram.com',
+      postUrl: 'https://www.instagram.com/daisy_hubnp?stkn=MTh4dTQzeGxoMXpnYg==',
     },
     {
       id: 'ig-6',
       imageUrl: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=800&auto=format&fit=crop',
-      postUrl: 'https://instagram.com',
+      postUrl: 'https://www.instagram.com/daisy_hubnp?stkn=MTh4dTQzeGxoMXpnYg==',
     },
   ],
+  fonepaySettings: {
+    qrMode: 'static',
+    qrImageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop',
+    merchantName: 'DAISY HUB PVT LTD',
+    merchantCode: 'DAISY8849',
+    accountNumber: '9841234567',
+    instructions: 'Scan this official Fonepay QR code using any Mobile Banking app or digital wallet to complete payment.',
+    autoVerifyEnabled: true,
+  },
 };

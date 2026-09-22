@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Plus, Edit2, Trash2, Search, X, Check, Image as ImageIcon, Upload } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, X, Check, Image as ImageIcon, Upload, Palette } from 'lucide-react';
 import { db } from '@/lib/db';
-import { Product } from '@/types';
+import { Product, ColorOption } from '@/types';
+import { ProductVariantInspector } from '@/components/admin/product-variant-inspector';
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -32,16 +33,22 @@ export default function AdminProductsPage() {
     price: 1999,
     salePrice: 1599,
     description: '',
-    imageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop',
-    colorName: 'Black',
-    colorCode: '#111111',
-    stockXS: 10,
-    stockS: 15,
-    stockM: 20,
-    stockL: 12,
-    stockXL: 5,
-    stockXXL: 2,
+    insideValleyFee: 100,
+    outsideValleyFee: 200,
+    isFreeDelivery: false,
   });
+
+  // Multi-Color & Multi-Image State
+  const [colorsList, setColorsList] = useState<ColorOption[]>([
+    {
+      name: 'Black',
+      code: '#111111',
+      images: [
+        'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?q=80&w=1000&auto=format&fit=crop',
+      ],
+    },
+  ]);
 
   useEffect(() => {
     setProducts(db.getProducts());
@@ -59,27 +66,30 @@ export default function AdminProductsPage() {
     setFormData({
       name: '',
       slug: '',
-      sku: `ACE-PROD-${Math.floor(100 + Math.random() * 900)}`,
+      sku: `DAISY-PROD-${Math.floor(100 + Math.random() * 900)}`,
       category: 'tops',
       price: 1999,
       salePrice: 1599,
       description: 'Elegant women’s fashion piece designed for effortless confidence.',
-      imageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop',
-      colorName: 'Black',
-      colorCode: '#111111',
-      stockXS: 10,
-      stockS: 15,
-      stockM: 20,
-      stockL: 12,
-      stockXL: 5,
-      stockXXL: 2,
+      insideValleyFee: 100,
+      outsideValleyFee: 200,
+      isFreeDelivery: false,
     });
+    setColorsList([
+      {
+        name: 'Black',
+        code: '#111111',
+        images: [
+          'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop',
+          'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?q=80&w=1000&auto=format&fit=crop',
+        ],
+      },
+    ]);
     setIsModalOpen(true);
   };
 
   const handleOpenEdit = (p: Product) => {
     setEditingProduct(p);
-    const getStock = (sz: string) => p.sizes.find((s) => s.size === sz)?.stock ?? 0;
     setFormData({
       name: p.name,
       slug: p.slug,
@@ -88,16 +98,21 @@ export default function AdminProductsPage() {
       price: p.price,
       salePrice: p.salePrice || 0,
       description: p.description,
-      imageUrl: p.colors[0]?.images[0] || '',
-      colorName: p.colors[0]?.name || 'Black',
-      colorCode: p.colors[0]?.code || '#111111',
-      stockXS: getStock('XS'),
-      stockS: getStock('S'),
-      stockM: getStock('M'),
-      stockL: getStock('L'),
-      stockXL: getStock('XL'),
-      stockXXL: getStock('XXL'),
+      insideValleyFee: p.insideValleyFee !== undefined ? p.insideValleyFee : 100,
+      outsideValleyFee: p.outsideValleyFee !== undefined ? p.outsideValleyFee : 200,
+      isFreeDelivery: !!p.isFreeDelivery,
     });
+    if (p.colors && p.colors.length > 0) {
+      setColorsList(JSON.parse(JSON.stringify(p.colors)));
+    } else {
+      setColorsList([
+        {
+          name: 'Black',
+          code: '#111111',
+          images: ['https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop'],
+        },
+      ]);
+    }
     setIsModalOpen(true);
   };
 
@@ -106,6 +121,60 @@ export default function AdminProductsPage() {
       db.deleteProduct(id);
       setProducts(db.getProducts());
     }
+  };
+
+  // Color & Image Helpers
+  const handleAddColorVariant = () => {
+    setColorsList([
+      ...colorsList,
+      {
+        name: `Color ${colorsList.length + 1}`,
+        code: '#C0C0C0',
+        images: ['https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop'],
+      },
+    ]);
+  };
+
+  const handleRemoveColorVariant = (index: number) => {
+    if (colorsList.length <= 1) {
+      alert('Product must have at least 1 color variant.');
+      return;
+    }
+    setColorsList(colorsList.filter((_, idx) => idx !== index));
+  };
+
+  const [activeProdColorIdx, setActiveProdColorIdx] = useState<number>(0);
+  const [activeProdImgIdx, setActiveProdImgIdx] = useState<number>(0);
+
+  const handleColorChange = (index: number, field: keyof ColorOption, value: any) => {
+    const updated = [...colorsList];
+    updated[index] = { ...updated[index], [field]: value };
+    setColorsList(updated);
+  };
+
+  const handleImageUploadForColor = (colorIndex: number, file: File) => {
+    handleFileUpload(file, (dataUrl) => {
+      const updated = [...colorsList];
+      updated[colorIndex].images = [...updated[colorIndex].images, dataUrl];
+      setColorsList(updated);
+    });
+  };
+
+  const handleAddImageUrlForColor = (colorIndex: number, url: string) => {
+    if (!url.trim()) return;
+    const updated = [...colorsList];
+    updated[colorIndex].images = [...updated[colorIndex].images, url.trim()];
+    setColorsList(updated);
+  };
+
+  const handleRemoveImageFromColor = (colorIndex: number, imageIndex: number) => {
+    const updated = [...colorsList];
+    if (updated[colorIndex].images.length <= 1) {
+      alert('Each color variant must have at least 1 image.');
+      return;
+    }
+    updated[colorIndex].images = updated[colorIndex].images.filter((_, idx) => idx !== imageIndex);
+    setColorsList(updated);
   };
 
   const handleSave = (e: React.FormEvent) => {
@@ -125,21 +194,16 @@ export default function AdminProductsPage() {
       reviewCount: editingProduct ? editingProduct.reviewCount : 1,
       sku: formData.sku,
       createdAt: editingProduct ? editingProduct.createdAt : new Date().toISOString(),
-      colors: [
-        {
-          name: formData.colorName,
-          code: formData.colorCode,
-          images: [formData.imageUrl, formData.imageUrl],
-        },
-      ],
+      colors: colorsList.map((c) => ({
+        ...c,
+        images: c.images.length > 0 ? c.images : ['https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop'],
+      })),
       sizes: [
-        { size: 'XS', stock: Number(formData.stockXS) },
-        { size: 'S', stock: Number(formData.stockS) },
-        { size: 'M', stock: Number(formData.stockM) },
-        { size: 'L', stock: Number(formData.stockL) },
-        { size: 'XL', stock: Number(formData.stockXL) },
-        { size: 'XXL', stock: Number(formData.stockXXL) },
+        { size: 'Free Size', stock: colorsList.reduce((acc, c) => acc + (c.stock || 50), 0) },
       ],
+      insideValleyFee: Number(formData.insideValleyFee) || 100,
+      outsideValleyFee: Number(formData.outsideValleyFee) || 200,
+      isFreeDelivery: formData.isFreeDelivery,
     };
 
     db.saveProduct(newProd);
@@ -154,7 +218,7 @@ export default function AdminProductsPage() {
           <h1 className="font-serif-title text-3xl font-bold text-brand-dark uppercase tracking-wider">
             PRODUCT MANAGEMENT
           </h1>
-          <p className="text-xs text-brand-muted mt-0.5">Manage women&apos;s fashion catalog, prices, images & stock setup.</p>
+          <p className="text-xs text-brand-muted mt-0.5">Manage women&apos;s fashion catalog, multi-color variants, 2+ images per color & stock setup.</p>
         </div>
 
         <button
@@ -186,6 +250,7 @@ export default function AdminProductsPage() {
                 <th className="p-3">Product</th>
                 <th className="p-3">SKU</th>
                 <th className="p-3">Category</th>
+                <th className="p-3">Colors & Photos</th>
                 <th className="p-3">Price</th>
                 <th className="p-3">Total Stock</th>
                 <th className="p-3 text-right">Actions</th>
@@ -195,6 +260,7 @@ export default function AdminProductsPage() {
               {filtered.map((p) => {
                 const totalStock = p.sizes.reduce((acc, s) => acc + s.stock, 0);
                 const displayImg = p.colors[0]?.images[0] || '';
+                const totalPhotos = p.colors.reduce((acc, c) => acc + c.images.length, 0);
                 return (
                   <tr key={p.id} className="hover:bg-brand-cream/30">
                     <td className="p-3">
@@ -214,6 +280,23 @@ export default function AdminProductsPage() {
                     </td>
                     <td className="p-3 font-mono text-[11px] font-semibold">{p.sku}</td>
                     <td className="p-3 uppercase font-medium text-brand-muted">{p.category}</td>
+                    <td className="p-3">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5">
+                          {p.colors.map((c, i) => (
+                            <span
+                              key={i}
+                              className="w-3.5 h-3.5 rounded-full border border-black/20 shadow-xs"
+                              style={{ backgroundColor: c.code }}
+                              title={`${c.name} (${c.images.length} photos)`}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-[10px] font-bold text-brand-dark">
+                          {p.colors.length} color(s) • {totalPhotos} photo(s)
+                        </span>
+                      </div>
+                    </td>
                     <td className="p-3 font-bold">
                       NPR {(p.salePrice || p.price).toLocaleString()}
                       {p.salePrice && <span className="text-brand-muted line-through font-normal text-[10px] block">NPR {p.price.toLocaleString()}</span>}
@@ -230,7 +313,7 @@ export default function AdminProductsPage() {
                         <button
                           onClick={() => handleOpenEdit(p)}
                           className="p-1.5 text-brand-dark hover:bg-brand-cream rounded"
-                          title="Edit Product"
+                          title="Edit Product & Photos"
                         >
                           <Edit2 size={16} />
                         </button>
@@ -256,12 +339,15 @@ export default function AdminProductsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/60 backdrop-blur-xs" onClick={() => setIsModalOpen(false)} />
 
-          <div className="relative w-full max-w-3xl bg-white rounded-lg shadow-2xl z-10 p-6 md:p-8 space-y-6 max-h-[90vh] overflow-y-auto">
+          <div className="relative w-full max-w-4xl bg-white rounded-lg shadow-2xl z-10 p-6 md:p-8 space-y-6 max-h-[92vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-3 border-b border-brand-border">
-              <h3 className="font-serif-title text-lg font-bold text-brand-dark uppercase tracking-wider">
-                {editingProduct ? 'EDIT PRODUCT & INVENTORY' : 'CREATE NEW PRODUCT'}
-              </h3>
-              <button onClick={() => setIsModalOpen(false)}>
+              <div>
+                <span className="text-[10px] text-brand-gold font-bold uppercase tracking-widest block">ADMIN CATALOG EDITOR</span>
+                <h3 className="font-serif-title text-xl font-bold text-brand-dark uppercase tracking-wider">
+                  {editingProduct ? 'EDIT PRODUCT, COLOR VARIANTS & IMAGES' : 'CREATE NEW PRODUCT WITH COLOR-WISE IMAGES'}
+                </h3>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="p-1 hover:bg-brand-cream rounded-full">
                 <X size={20} />
               </button>
             </div>
@@ -275,7 +361,8 @@ export default function AdminProductsPage() {
                     required
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full p-2.5 border border-brand-border rounded focus:outline-none focus:border-brand-dark"
+                    className="w-full p-2.5 border border-brand-border rounded focus:outline-none focus:border-brand-dark font-medium"
+                    placeholder="e.g. Satin Cowl Neck Midi Dress"
                   />
                 </div>
                 <div>
@@ -301,58 +388,25 @@ export default function AdminProductsPage() {
                     <option value="sets">Co-ord Sets</option>
                   </select>
                 </div>
-                <div>
-                  <label className="font-semibold text-brand-dark block mb-1">ORIGINAL PRICE (NPR) *</label>
-                  <input
-                    type="number"
-                    required
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
-                    className="w-full p-2.5 border border-brand-border rounded font-mono font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-brand-dark block mb-1">SALE PRICE (NPR)</label>
-                  <input
-                    type="number"
-                    value={formData.salePrice}
-                    onChange={(e) => setFormData({ ...formData, salePrice: Number(e.target.value) })}
-                    className="w-full p-2.5 border border-brand-border rounded font-mono font-bold"
-                  />
-                </div>
-                <div className="md:col-span-2 space-y-2 pt-2 border-t border-brand-border">
-                  <label className="font-bold text-brand-dark uppercase tracking-wider block">CLOTHING PICTURE *</label>
-                  <div className="flex items-center gap-4">
-                    <div className="relative w-20 h-24 bg-brand-cream rounded border border-brand-border overflow-hidden shrink-0">
-                      {formData.imageUrl ? (
-                        <Image src={formData.imageUrl} alt="Preview" fill unoptimized className="object-cover" />
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-brand-muted">
-                          <ImageIcon size={20} />
-                          <span className="text-[9px] mt-1">No Image</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 border-2 border-dashed border-brand-border hover:border-brand-dark bg-brand-cream/30 p-3 rounded text-center transition-colors">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        id="product-photo-file"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleFileUpload(file, (url) => setFormData({ ...formData, imageUrl: url }));
-                        }}
-                      />
-                      <label
-                        htmlFor="product-photo-file"
-                        className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-brand-dark text-white text-xs font-bold rounded uppercase tracking-wider hover:bg-brand-dark/90"
-                      >
-                        <Upload size={14} />
-                        <span>Upload Photo from Local Device</span>
-                      </label>
-                      <p className="text-[10px] text-brand-muted mt-1.5">Select image file from computer (PNG, JPG, WEBP)</p>
-                    </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-brand-dark block mb-1">REGULAR PRICE (NPR) *</label>
+                    <input
+                      type="number"
+                      required
+                      value={formData.price}
+                      onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
+                      className="w-full p-2.5 border border-brand-border rounded font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-brand-dark block mb-1">SALE PRICE (NPR)</label>
+                    <input
+                      type="number"
+                      value={formData.salePrice}
+                      onChange={(e) => setFormData({ ...formData, salePrice: Number(e.target.value) })}
+                      className="w-full p-2.5 border border-brand-border rounded font-mono font-bold"
+                    />
                   </div>
                 </div>
               </div>
@@ -364,65 +418,63 @@ export default function AdminProductsPage() {
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="w-full p-2.5 border border-brand-border rounded"
+                  placeholder="Enter details regarding fabric weave, fit notes, and styling instructions..."
                 />
               </div>
 
-              {/* Color Details */}
-              <div className="p-4 bg-brand-cream/40 border border-brand-border rounded space-y-3">
-                <h4 className="font-serif-title font-bold text-brand-dark uppercase tracking-wider">
-                  COLOR SPECIFICATIONS
-                </h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-semibold text-brand-dark block mb-1">COLOR NAME</label>
+              {/* DELIVERY FEE SETTINGS PER PRODUCT */}
+              <div className="bg-brand-cream/50 p-4 rounded-lg border border-brand-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-brand-dark uppercase tracking-wider">
+                    🚚 DELIVERY FEE CUSTOMIZATION FOR THIS PRODUCT
+                  </span>
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <input
-                      type="text"
-                      value={formData.colorName}
-                      onChange={(e) => setFormData({ ...formData, colorName: e.target.value })}
-                      className="w-full p-2 border border-brand-border rounded bg-white"
+                      type="checkbox"
+                      checked={formData.isFreeDelivery}
+                      onChange={(e) => setFormData({ ...formData, isFreeDelivery: e.target.checked })}
+                      className="w-4 h-4 accent-emerald-600 rounded cursor-pointer"
                     />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-brand-dark block mb-1">COLOR HEX CODE</label>
-                    <input
-                      type="text"
-                      value={formData.colorCode}
-                      onChange={(e) => setFormData({ ...formData, colorCode: e.target.value })}
-                      className="w-full p-2 border border-brand-border rounded font-mono bg-white uppercase"
-                    />
-                  </div>
+                    <span className="text-xs font-bold text-emerald-700 uppercase">OFFER FREE DELIVERY</span>
+                  </label>
                 </div>
-              </div>
 
-              {/* Size & Stock Allocation */}
-              <div className="p-4 bg-brand-cream/40 border border-brand-border rounded space-y-3">
-                <h4 className="font-serif-title font-bold text-brand-dark uppercase tracking-wider">
-                  SIZE-BY-SIZE STOCK ALLOCATION
-                </h4>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-                  {[
-                    { key: 'stockXS', label: 'XS STOCK' },
-                    { key: 'stockS', label: 'S STOCK' },
-                    { key: 'stockM', label: 'M STOCK' },
-                    { key: 'stockL', label: 'L STOCK' },
-                    { key: 'stockXL', label: 'XL STOCK' },
-                    { key: 'stockXXL', label: 'XXL STOCK' },
-                  ].map((sz) => (
-                    <div key={sz.key}>
-                      <label className="font-mono font-bold text-brand-dark text-[10px] block mb-1">{sz.label}</label>
+                {!formData.isFreeDelivery && (
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="text-[11px] font-semibold text-brand-dark block mb-1">
+                        INSIDE VALLEY DELIVERY FEE (NPR)
+                      </label>
                       <input
                         type="number"
                         min={0}
-                        value={(formData as any)[sz.key]}
-                        onChange={(e) => setFormData({ ...formData, [sz.key]: Number(e.target.value) })}
-                        className="w-full p-2 border border-brand-border rounded text-center font-mono font-bold bg-white"
+                        value={formData.insideValleyFee}
+                        onChange={(e) => setFormData({ ...formData, insideValleyFee: Number(e.target.value) })}
+                        className="w-full p-2.5 border border-brand-border rounded font-mono font-bold text-xs bg-white"
+                        placeholder="e.g. 100"
                       />
                     </div>
-                  ))}
-                </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-brand-dark block mb-1">
+                        OUTSIDE VALLEY DELIVERY FEE (NPR)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={formData.outsideValleyFee}
+                        onChange={(e) => setFormData({ ...formData, outsideValleyFee: Number(e.target.value) })}
+                        className="w-full p-2.5 border border-brand-border rounded font-mono font-bold text-xs bg-white"
+                        placeholder="e.g. 200"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="pt-2 flex justify-end gap-3">
+              {/* DYNAMIC CLICKABLE PHOTO & COLOR/SIZE VARIANT INSPECTOR */}
+              <ProductVariantInspector colors={colorsList} onChange={setColorsList} />
+
+              <div className="pt-2 flex justify-end gap-3 border-t border-brand-border">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
@@ -432,9 +484,9 @@ export default function AdminProductsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-brand-dark text-white font-bold uppercase tracking-widest rounded shadow"
+                  className="px-7 py-2.5 bg-brand-dark text-white font-bold uppercase tracking-widest rounded shadow"
                 >
-                  SAVE PRODUCT & INVENTORY
+                  SAVE PRODUCT & COLOR IMAGES
                 </button>
               </div>
             </form>

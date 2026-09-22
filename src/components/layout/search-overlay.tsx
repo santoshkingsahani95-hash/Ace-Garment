@@ -94,7 +94,7 @@ export const SearchOverlay: React.FC = () => {
                   onClick={closeSearch}
                   className="relative h-28 rounded overflow-hidden group block"
                 >
-                  <Image src={cat.img} alt={cat.name} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <Image src={cat.img} alt={cat.name} fill unoptimized className="object-cover group-hover:scale-105 transition-transform duration-500" />
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center p-2">
                     <span className="text-white text-xs font-bold uppercase tracking-wider">{cat.name}</span>
                   </div>
@@ -131,6 +131,7 @@ export const SearchOverlay: React.FC = () => {
                           src={product.colors[0]?.images[0] || ''}
                           alt={product.name}
                           fill
+                          unoptimized
                           className="object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                       </div>

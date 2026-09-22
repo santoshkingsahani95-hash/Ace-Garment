@@ -18,25 +18,47 @@ function TrackOrderContent() {
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [searched, setSearched] = useState(false);
 
-  const steps = ['Order Placed', 'Confirmed', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered'];
+  const steps = ['Pending', 'Confirmed', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered'];
+
+  const refreshOrder = () => {
+    if (orderQuery.trim()) {
+      const found = db.getOrderById(orderQuery.trim());
+      setActiveOrder(found || null);
+    }
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!orderQuery.trim()) return;
-    const found = db.getOrderById(orderQuery.trim());
-    setActiveOrder(found || null);
+    refreshOrder();
     setSearched(true);
   };
 
   useEffect(() => {
     if (initialNum) {
-      const found = db.getOrderById(initialNum);
-      setActiveOrder(found || null);
+      refreshOrder();
       setSearched(true);
     }
   }, [initialNum]);
 
-  const currentStepIndex = activeOrder ? steps.indexOf(activeOrder.orderStatus) : 0;
+  useEffect(() => {
+    const handleDbUpdate = () => refreshOrder();
+    window.addEventListener('ace-db-updated', handleDbUpdate);
+    window.addEventListener('storage', handleDbUpdate);
+    return () => {
+      window.removeEventListener('ace-db-updated', handleDbUpdate);
+      window.removeEventListener('storage', handleDbUpdate);
+    };
+  }, [orderQuery]);
+
+  const getStepIndex = (status?: string) => {
+    if (!status) return 0;
+    if (status === 'Order Placed' || status === 'Pending') return 0;
+    const idx = steps.indexOf(status);
+    return idx >= 0 ? idx : 0;
+  };
+
+  const currentStepIndex = activeOrder ? getStepIndex(activeOrder.orderStatus) : 0;
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -47,7 +69,7 @@ function TrackOrderContent() {
         <div className="text-center max-w-xl mx-auto mb-10 space-y-2">
           <span className="text-xs font-bold uppercase tracking-ultra text-brand-gold">LIVE LOGISTICS TRACKER</span>
           <h1 className="font-serif-title text-3xl md:text-5xl font-bold text-brand-dark">TRACK YOUR ORDER</h1>
-          <p className="text-xs text-brand-muted">Enter your ACE Garment order number to view real-time delivery timeline.</p>
+          <p className="text-xs text-brand-muted">Enter your Daisy Hub order number to view real-time delivery timeline.</p>
         </div>
 
         {/* Search Form */}
@@ -84,6 +106,20 @@ function TrackOrderContent() {
               <div>
                 <span className="text-brand-muted uppercase tracking-widest font-semibold block">ORDER NUMBER</span>
                 <span className="font-mono text-base font-bold text-brand-dark">{activeOrder.orderNumber}</span>
+              </div>
+              <div>
+                <span className="text-brand-muted uppercase tracking-widest font-semibold block">LIVE STATUS</span>
+                <span className={`text-xs font-bold font-mono px-3 py-1 rounded inline-block mt-0.5 border ${
+                  activeOrder.orderStatus === 'Delivered'
+                    ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                    : activeOrder.orderStatus === 'Pending'
+                    ? 'bg-amber-100 text-amber-900 border-amber-300'
+                    : activeOrder.orderStatus === 'Cancelled'
+                    ? 'bg-rose-100 text-rose-900 border-rose-300'
+                    : 'bg-sky-100 text-sky-900 border-sky-300'
+                }`}>
+                  {activeOrder.orderStatus === 'Pending' ? '⏳ PENDING' : activeOrder.orderStatus === 'Delivered' ? '✅ DELIVERED' : activeOrder.orderStatus.toUpperCase()}
+                </span>
               </div>
               <div>
                 <span className="text-brand-muted uppercase tracking-widest font-semibold block">CUSTOMER</span>

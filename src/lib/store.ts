@@ -5,7 +5,7 @@ import { CartItem, Product, WishlistItem, CustomerUser } from '@/types';
 interface StoreState {
   // Cart
   cart: CartItem[];
-  addToCart: (product: Product, colorName: string, size: 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL', quantity?: number) => void;
+  addToCart: (product: Product, colorName: string, size: string, quantity?: number) => void;
   removeFromCart: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, quantity: number) => void;
   clearCart: () => void;
@@ -41,6 +41,7 @@ interface StoreState {
   // Customer Auth
   user: CustomerUser | null;
   setUser: (user: CustomerUser | null) => void;
+  switchRole: (role: 'ADMIN' | 'CUSTOMER') => void;
   logout: () => void;
 }
 
@@ -50,6 +51,16 @@ export const useStore = create<StoreState>()(
       // Cart State
       cart: [],
       addToCart: (product, colorName, size, quantity = 1) => {
+        const totalProductStock = product.sizes.reduce((acc, s) => acc + s.stock, 0);
+        const sizeObj = product.sizes.find((s) => s.size === size);
+        const maxStock = sizeObj ? sizeObj.stock : (totalProductStock > 0 ? totalProductStock : 50);
+        if (maxStock <= 0) {
+          if (typeof window !== 'undefined') {
+            alert(`Sorry! ${product.name} is currently OUT OF STOCK.`);
+          }
+          return;
+        }
+
         const color = product.colors.find((c) => c.name === colorName) || product.colors[0];
         const selectedImage = color?.images[0] || product.colors[0]?.images[0] || '';
         const price = product.salePrice && product.salePrice < product.price ? product.salePrice : product.price;
@@ -59,10 +70,17 @@ export const useStore = create<StoreState>()(
           const existingIndex = state.cart.findIndex((item) => item.id === itemId);
           if (existingIndex > -1) {
             const updated = [...state.cart];
-            updated[existingIndex].quantity += quantity;
+            const currentQty = updated[existingIndex].quantity;
+            const newQty = Math.min(currentQty + quantity, maxStock);
+            if (newQty === currentQty && currentQty >= maxStock && typeof window !== 'undefined') {
+              alert(`Cannot add more! Maximum available stock (${maxStock} units) already in your bag.`);
+            }
+            updated[existingIndex].quantity = newQty;
+            updated[existingIndex].maxStock = maxStock;
             return { cart: updated, isMiniCartOpen: true };
           }
 
+          const initialQty = Math.min(quantity, maxStock);
           const newItem: CartItem = {
             id: itemId,
             productId: product.id,
@@ -74,8 +92,9 @@ export const useStore = create<StoreState>()(
             size: size,
             price: price,
             originalPrice: product.price,
-            quantity: quantity,
+            quantity: initialQty,
             sku: product.sku,
+            maxStock: maxStock,
           };
 
           return { cart: [newItem, ...state.cart], isMiniCartOpen: true };
@@ -94,7 +113,17 @@ export const useStore = create<StoreState>()(
           return;
         }
         set((state) => ({
-          cart: state.cart.map((item) => (item.id === cartItemId ? { ...item, quantity } : item)),
+          cart: state.cart.map((item) => {
+            if (item.id === cartItemId) {
+              const limit = item.maxStock !== undefined ? item.maxStock : 999;
+              if (quantity > limit && typeof window !== 'undefined') {
+                alert(`Only ${limit} units available in stock for ${item.productName} (${item.size}).`);
+              }
+              const finalQty = Math.min(quantity, limit);
+              return { ...item, quantity: finalQty };
+            }
+            return item;
+          }),
         }));
       },
 
@@ -179,6 +208,22 @@ export const useStore = create<StoreState>()(
         registrationDate: '2026-02-15',
       },
       setUser: (user) => set({ user }),
+      switchRole: (role) =>
+        set((state) => {
+          if (!state.user) {
+            return {
+              user: {
+                id: role === 'ADMIN' ? 'usr-admin-1' : 'usr-cust-1',
+                name: role === 'ADMIN' ? 'Admin Manager' : 'Aayusha Karki',
+                email: role === 'ADMIN' ? 'admin@daisyhub.com' : 'aayusha.k@example.com',
+                mobile: '+977 9841234567',
+                role,
+                registrationDate: '2026-02-15',
+              },
+            };
+          }
+          return { user: { ...state.user, role } };
+        }),
       logout: () => set({ user: null }),
     }),
     {

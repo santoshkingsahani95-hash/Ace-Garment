@@ -2,10 +2,14 @@ export interface ColorOption {
   name: string;
   code: string; // hex string e.g. #000000
   images: string[];
+  price?: number; // custom price override for this color variant
+  salePrice?: number; // custom sale price override for this color variant
+  sizes?: SizeVariant[]; // size stock for this color option
+  stock?: number; // individual stock level for this specific color variant
 }
 
 export interface SizeVariant {
-  size: 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL';
+  size: 'Free Size' | 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL' | string;
   stock: number;
   sku?: string;
 }
@@ -14,7 +18,7 @@ export interface ProductVariant {
   id: string;
   colorName: string;
   colorCode: string;
-  size: 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL';
+  size: string;
   stock: number;
   sku: string;
   price?: number;
@@ -57,6 +61,9 @@ export interface Product {
   sku: string;
   createdAt: string;
   reviews?: ProductReview[];
+  insideValleyFee?: number;
+  outsideValleyFee?: number;
+  isFreeDelivery?: boolean;
 }
 
 export interface Category {
@@ -84,11 +91,12 @@ export interface CartItem {
   image: string;
   colorName: string;
   colorCode: string;
-  size: 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL';
+  size: string;
   price: number; // current price (salePrice if available)
   originalPrice: number;
   quantity: number;
   sku: string;
+  maxStock?: number;
 }
 
 export interface WishlistItem {
@@ -126,6 +134,8 @@ export interface OrderItem {
   image: string;
 }
 
+export type OrderStatus = 'Pending' | 'Delivered' | 'Confirmed' | 'Processing' | 'Shipped' | 'Out for Delivery' | 'Cancelled';
+
 export interface Order {
   id: string;
   orderNumber: string;
@@ -137,7 +147,7 @@ export interface Order {
   total: number;
   paymentMethod: PaymentMethod;
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
-  orderStatus: 'Order Placed' | 'Confirmed' | 'Processing' | 'Shipped' | 'Out for Delivery' | 'Delivered' | 'Cancelled';
+  orderStatus: OrderStatus;
   customerName: string;
   customerEmail: string;
   customerMobile: string;
@@ -154,6 +164,19 @@ export interface Coupon {
   maxDiscount?: number;
   expiryDate: string;
   active: boolean;
+}
+
+export interface FonepaySettings {
+  qrMode: 'static' | 'dynamic';
+  qrImageUrl: string;
+  merchantName: string;
+  merchantCode: string;
+  accountNumber: string;
+  instructions: string;
+  autoVerifyEnabled: boolean;
+  apiUsername?: string;
+  apiPassword?: string;
+  apiKey?: string;
 }
 
 export interface HomepageCMS {
@@ -183,6 +206,7 @@ export interface HomepageCMS {
     imageUrl: string;
     postUrl: string;
   }[];
+  fonepaySettings?: FonepaySettings;
 }
 
 export interface CustomerUser {

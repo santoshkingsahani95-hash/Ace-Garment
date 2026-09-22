@@ -54,7 +54,7 @@ export default function WishlistPage() {
               return (
                 <div key={item.productId} className="group relative bg-white border border-brand-border rounded overflow-hidden flex flex-col justify-between">
                   <div className="relative aspect-[3/4] bg-brand-cream overflow-hidden">
-                    <Image src={item.image} alt={item.name} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
+                    <Image src={item.image} alt={item.name} fill unoptimized className="object-cover group-hover:scale-105 transition-transform duration-500" />
                     <button
                       onClick={() => fullProduct && toggleWishlist(fullProduct)}
                       className="absolute top-2.5 right-2.5 p-2 bg-white/80 rounded-full text-brand-sale hover:bg-white transition-colors"

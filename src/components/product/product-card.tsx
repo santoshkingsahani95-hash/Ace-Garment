@@ -23,6 +23,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const secondImg = currentColor?.images[1] || product.colors[0]?.images[1] || firstImg;
 
   const displayPrice = product.salePrice && product.salePrice < product.price ? product.salePrice : product.price;
+  const totalStock = product.sizes.reduce((acc, s) => acc + s.stock, 0);
+  const isOutOfStock = totalStock === 0;
 
   return (
     <div
@@ -34,20 +36,28 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       <div className="relative aspect-[3/4] w-full bg-brand-cream overflow-hidden rounded">
         {/* Badges */}
         <div className="absolute top-2.5 left-2.5 z-10 flex flex-col gap-1.5">
-          {product.isNewArrival && (
-            <span className="bg-brand-dark text-white text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-xs">
-              NEW
+          {isOutOfStock ? (
+            <span className="bg-rose-600 text-white text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-xs shadow-sm">
+              OUT OF STOCK
             </span>
-          )}
-          {product.isTrending && (
-            <span className="bg-brand-gold text-white text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-xs">
-              TRENDING
-            </span>
-          )}
-          {product.salePrice && product.discountPercentage && (
-            <span className="bg-brand-sale text-white text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-xs">
-              -{product.discountPercentage}%
-            </span>
+          ) : (
+            <>
+              {product.isNewArrival && (
+                <span className="bg-brand-dark text-white text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-xs">
+                  NEW
+                </span>
+              )}
+              {product.isTrending && (
+                <span className="bg-brand-gold text-white text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-xs">
+                  TRENDING
+                </span>
+              )}
+              {product.salePrice && product.discountPercentage && (
+                <span className="bg-brand-sale text-white text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-xs">
+                  -{product.discountPercentage}%
+                </span>
+              )}
+            </>
           )}
         </div>
 
@@ -72,24 +82,36 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             src={isHovered && secondImg ? secondImg : firstImg}
             alt={product.name}
             fill
+            unoptimized
             sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-            className="object-cover transition-all duration-700 ease-out group-hover:scale-105"
+            className={`object-cover transition-all duration-700 ease-out group-hover:scale-105 ${
+              isOutOfStock ? 'opacity-75 grayscale-25' : ''
+            }`}
           />
         </Link>
 
         {/* Quick Add Hover Overlay Button (Desktop & Touch) */}
         <div className="absolute bottom-3 left-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hidden md:block">
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              openQuickAdd(product);
-            }}
-            className="w-full py-2.5 bg-white/95 text-brand-dark hover:bg-brand-dark hover:text-white text-xs font-semibold uppercase tracking-widest transition-colors shadow-lg flex items-center justify-center gap-2"
-          >
-            <ShoppingBag size={14} />
-            <span>QUICK ADD</span>
-          </button>
+          {isOutOfStock ? (
+            <button
+              disabled
+              className="w-full py-2.5 bg-rose-600/90 text-white text-xs font-bold uppercase tracking-widest cursor-not-allowed shadow-lg flex items-center justify-center gap-2"
+            >
+              <span>OUT OF STOCK</span>
+            </button>
+          ) : (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openQuickAdd(product);
+              }}
+              className="w-full py-2.5 bg-white/95 text-brand-dark hover:bg-brand-dark hover:text-white text-xs font-semibold uppercase tracking-widest transition-colors shadow-lg flex items-center justify-center gap-2"
+            >
+              <ShoppingBag size={14} />
+              <span>QUICK ADD</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -122,12 +144,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           {product.name}
         </Link>
 
-        {/* Pricing */}
-        <div className="flex items-center gap-2 text-xs md:text-sm">
-          <span className="font-semibold text-brand-dark">NPR {displayPrice.toLocaleString()}</span>
-          {product.salePrice && (
-            <span className="text-brand-muted line-through text-[11px] md:text-xs">
-              NPR {product.price.toLocaleString()}
+        {/* Pricing & Stock Status */}
+        <div className="flex items-center justify-between text-xs md:text-sm">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-brand-dark">NPR {displayPrice.toLocaleString()}</span>
+            {product.salePrice && (
+              <span className="text-brand-muted line-through text-[11px] md:text-xs">
+                NPR {product.price.toLocaleString()}
+              </span>
+            )}
+          </div>
+          {isOutOfStock && (
+            <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider">
+              OUT OF STOCK
             </span>
           )}
         </div>

@@ -3,7 +3,23 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { User, Package, Heart, MapPin, Key, LogOut, ArrowRight } from 'lucide-react';
+import Image from 'next/image';
+import {
+  User,
+  Package,
+  Heart,
+  MapPin,
+  Key,
+  LogOut,
+  ArrowRight,
+  Shield,
+  RefreshCw,
+  Eye,
+  X,
+  ShoppingBag,
+  Phone,
+  Mail,
+} from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { AnnouncementBar } from '@/components/layout/announcement-bar';
 import { Footer } from '@/components/layout/footer';
@@ -13,17 +29,30 @@ import { Order } from '@/types';
 
 export default function AccountPage() {
   const router = useRouter();
-  const { user, logout, wishlist } = useStore();
+  const { user, logout, wishlist, switchRole } = useStore();
   const [activeTab, setActiveTab] = useState<'orders' | 'wishlist' | 'profile' | 'addresses' | 'security'>('orders');
   const [userOrders, setUserOrders] = useState<Order[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
+  const fetchUserOrders = () => {
+    const orders = db.getOrders();
+    setUserOrders(orders);
+  };
 
   useEffect(() => {
     if (!user) {
       router.push('/login');
       return;
     }
-    const orders = db.getOrders();
-    setUserOrders(orders);
+    fetchUserOrders();
+
+    const handleDbUpdate = () => fetchUserOrders();
+    window.addEventListener('ace-db-updated', handleDbUpdate);
+    window.addEventListener('storage', handleDbUpdate);
+    return () => {
+      window.removeEventListener('ace-db-updated', handleDbUpdate);
+      window.removeEventListener('storage', handleDbUpdate);
+    };
   }, [user, router]);
 
   if (!user) return null;
@@ -37,20 +66,36 @@ export default function AccountPage() {
         {/* Welcome Card */}
         <div className="bg-white p-6 md:p-8 rounded-lg border border-brand-border shadow-sm flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
-            <span className="text-[11px] uppercase tracking-ultra font-bold text-brand-gold">CUSTOMER PORTAL</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] uppercase tracking-ultra font-bold text-brand-gold">CUSTOMER PORTAL</span>
+              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded uppercase ${
+                user.role === 'ADMIN' ? 'bg-brand-dark text-white' : 'bg-brand-cream text-brand-dark'
+              }`}>
+                ROLE: {user.role}
+              </span>
+            </div>
             <h1 className="font-serif-title text-3xl font-bold text-brand-dark">WELCOME, {user.name.toUpperCase()}</h1>
             <p className="text-xs text-brand-muted mt-0.5">{user.email} • Member since {user.registrationDate}</p>
           </div>
 
-          <div className="flex gap-3">
-            {user.role === 'ADMIN' && (
-              <Link
-                href="/admin"
-                className="px-4 py-2.5 bg-brand-gold text-white text-xs font-bold uppercase tracking-wider rounded"
-              >
-                ADMIN PANEL
-              </Link>
-            )}
+          <div className="flex flex-wrap gap-2.5">
+            <Link
+              href="/admin"
+              className="px-4 py-2.5 bg-brand-dark hover:bg-brand-gold text-white text-xs font-bold uppercase tracking-wider rounded flex items-center gap-2 shadow-xs transition-colors"
+            >
+              <Shield size={14} className="text-brand-gold" />
+              <span>ADMIN PANEL</span>
+            </Link>
+
+            <button
+              onClick={() => switchRole(user.role === 'ADMIN' ? 'CUSTOMER' : 'ADMIN')}
+              className="px-3.5 py-2.5 bg-brand-cream hover:bg-brand-border text-brand-dark text-xs font-bold uppercase tracking-wider rounded flex items-center gap-1.5 transition-colors border border-brand-border"
+              title="Toggle role for testing"
+            >
+              <RefreshCw size={14} />
+              <span>{user.role === 'ADMIN' ? 'SWITCH TO CUSTOMER' : 'SWITCH TO ADMIN'}</span>
+            </button>
+
             <button
               onClick={() => {
                 logout();
@@ -121,23 +166,41 @@ export default function AccountPage() {
                       <div key={ord.id} className="p-5 border border-brand-border rounded space-y-3 bg-brand-cream/20">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-brand-border text-xs gap-2">
                           <div>
-                            <span className="font-mono font-bold text-brand-dark">{ord.orderNumber}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-brand-dark text-sm">{ord.orderNumber}</span>
+                              <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded border ${
+                                ord.orderStatus === 'Delivered'
+                                  ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                                  : ord.orderStatus === 'Pending'
+                                  ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                  : ord.orderStatus === 'Cancelled'
+                                  ? 'bg-rose-100 text-rose-900 border-rose-300'
+                                  : 'bg-sky-100 text-sky-900 border-sky-300'
+                              }`}>
+                                {ord.orderStatus === 'Pending' ? '⏳ PENDING' : ord.orderStatus === 'Delivered' ? '✅ DELIVERED' : ord.orderStatus.toUpperCase()}
+                              </span>
+                            </div>
                             <span className="text-brand-muted block text-[11px]">Placed on {new Date(ord.createdAt).toLocaleDateString()}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase px-2.5 py-1 rounded">
-                              {ord.orderStatus}
-                            </span>
-                            <span className="font-bold text-brand-dark">NPR {ord.total.toLocaleString()}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="font-bold text-brand-dark text-sm">NPR {ord.total.toLocaleString()}</span>
                           </div>
                         </div>
 
                         <div className="text-xs text-brand-muted space-y-1">
-                          <p><span className="font-semibold text-brand-dark">Items:</span> {ord.items.map((i) => `${i.productName} (${i.size})`).join(', ')}</p>
+                          <p><span className="font-semibold text-brand-dark">Items:</span> {ord.items.map((i) => `${i.productName} (${i.size}, ${i.colorName})`).join(', ')}</p>
                           <p><span className="font-semibold text-brand-dark">Payment:</span> {ord.paymentMethod.toUpperCase()} ({ord.paymentStatus})</p>
                         </div>
 
-                        <div className="pt-2 flex justify-end">
+                        <div className="pt-2 flex items-center justify-between">
+                          <button
+                            onClick={() => setSelectedOrder(ord)}
+                            className="text-xs font-bold text-brand-dark hover:text-brand-gold flex items-center gap-1.5 uppercase tracking-wider bg-white px-3 py-1.5 border border-brand-border rounded shadow-xs"
+                          >
+                            <Eye size={14} />
+                            <span>VIEW CLOTHES DETAILS</span>
+                          </button>
+
                           <Link
                             href={`/order-confirmation/${ord.id}`}
                             className="text-xs font-bold text-brand-dark hover:text-brand-gold flex items-center gap-1 uppercase tracking-wider"
@@ -220,6 +283,141 @@ export default function AccountPage() {
           </div>
         </div>
       </main>
+
+      {/* CUSTOMER ORDER DETAIL MODAL */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+            onClick={() => setSelectedOrder(null)}
+          />
+
+          <div className="relative w-full max-w-2xl bg-white rounded-lg shadow-2xl z-10 p-6 md:p-8 space-y-6 max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center pb-4 border-b border-brand-border">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-ultra text-brand-gold">
+                  PURCHASED CLOTHES SPECIFICATION
+                </span>
+                <h3 className="font-serif-title text-2xl font-bold text-brand-dark">
+                  {selectedOrder.orderNumber}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedOrder(null)}
+                className="p-1 text-brand-dark hover:bg-brand-cream rounded-full"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Delivery Address */}
+            <div className="bg-brand-cream/40 p-4 rounded border border-brand-border text-xs space-y-1">
+              <span className="font-bold text-brand-dark uppercase tracking-wider block text-[10px] text-brand-gold mb-1">
+                DELIVERY DESTINATION
+              </span>
+              <p className="font-bold text-brand-dark flex items-center gap-1.5">
+                <MapPin size={14} className="text-brand-muted shrink-0" />
+                <span>{selectedOrder.shippingAddress?.streetAddress || 'Address Provided'}</span>
+              </p>
+              <p className="text-brand-muted pl-5">
+                {selectedOrder.shippingAddress?.city || 'Kathmandu'}, {selectedOrder.shippingAddress?.province || 'Bagmati'}
+              </p>
+              <p className="text-brand-muted pl-5 font-mono">Mobile Contact: {selectedOrder.customerMobile}</p>
+            </div>
+
+            {/* Purchased Clothes List */}
+            <div className="space-y-3">
+              <h4 className="font-serif-title text-sm font-bold text-brand-dark uppercase tracking-wider border-b border-brand-border pb-2">
+                PURCHASED ITEMS ({selectedOrder.items.length})
+              </h4>
+
+              <div className="divide-y divide-brand-border">
+                {selectedOrder.items.map((item, idx) => (
+                  <div key={idx} className="py-3 flex items-center justify-between gap-4 text-xs">
+                    <div className="flex items-center gap-4">
+                      <div className="relative w-14 aspect-[3/4] bg-brand-cream rounded overflow-hidden shrink-0 border border-brand-border">
+                        {item.image ? (
+                          <Image
+                            src={item.image}
+                            alt={item.productName}
+                            fill
+                            unoptimized
+                            className="object-cover"
+                          />
+                        ) : (
+                          <ShoppingBag size={20} className="m-auto text-brand-muted" />
+                        )}
+                      </div>
+                      <div className="space-y-0.5">
+                        <h5 className="font-bold text-brand-dark text-sm">{item.productName}</h5>
+                        <div className="flex items-center gap-2 text-[11px] text-brand-muted font-medium">
+                          <span>Color: <strong className="text-brand-dark">{item.colorName}</strong></span>
+                          <span>•</span>
+                          <span>Size: <strong className="text-brand-dark font-mono">{item.size}</strong></span>
+                        </div>
+                        <p className="text-[11px] text-brand-muted font-mono">Quantity: {item.quantity} unit(s)</p>
+                      </div>
+                    </div>
+
+                    <div className="text-right font-mono">
+                      <span className="font-bold text-brand-dark block text-sm">
+                        NPR {(item.price * item.quantity).toLocaleString()}
+                      </span>
+                      <span className="text-[10px] text-brand-muted">
+                        (NPR {item.price.toLocaleString()} each)
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Payment Summary */}
+            <div className="p-4 bg-brand-cream/30 border border-brand-border rounded space-y-2 text-xs">
+              <div className="flex justify-between items-center pb-2 border-b border-brand-border/60">
+                <span className="font-bold text-brand-dark uppercase tracking-wider text-[11px]">ORDER STATUS:</span>
+                <span className={`text-xs font-bold font-mono px-2.5 py-1 rounded border ${
+                  selectedOrder.orderStatus === 'Delivered'
+                    ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                    : selectedOrder.orderStatus === 'Pending'
+                    ? 'bg-amber-100 text-amber-900 border-amber-300'
+                    : selectedOrder.orderStatus === 'Cancelled'
+                    ? 'bg-rose-100 text-rose-900 border-rose-300'
+                    : 'bg-sky-100 text-sky-900 border-sky-300'
+                }`}>
+                  {selectedOrder.orderStatus === 'Pending' ? '⏳ PENDING' : selectedOrder.orderStatus === 'Delivered' ? '✅ DELIVERED' : selectedOrder.orderStatus.toUpperCase()}
+                </span>
+              </div>
+              <div className="flex justify-between text-brand-muted">
+                <span>Payment Method</span>
+                <span className="font-mono uppercase font-bold text-brand-dark">{selectedOrder.paymentMethod}</span>
+              </div>
+              <div className="flex justify-between font-bold text-brand-dark text-sm pt-2 border-t border-brand-border">
+                <span>TOTAL PAID</span>
+                <span>NPR {selectedOrder.total.toLocaleString()}</span>
+              </div>
+            </div>
+
+            {/* Footer Action */}
+            <div className="flex justify-end gap-3 pt-2">
+              <Link
+                href={`/order-confirmation/${selectedOrder.id}`}
+                target="_blank"
+                className="px-4 py-2.5 border border-brand-border text-brand-dark hover:bg-brand-cream text-xs font-bold uppercase tracking-wider rounded"
+              >
+                VIEW OFFICIAL RECEIPT ↗
+              </Link>
+              <button
+                onClick={() => setSelectedOrder(null)}
+                className="px-5 py-2.5 bg-brand-dark text-white text-xs font-bold uppercase tracking-widest rounded"
+              >
+                CLOSE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>

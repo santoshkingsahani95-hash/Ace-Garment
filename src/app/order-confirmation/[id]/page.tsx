@@ -16,11 +16,23 @@ export default function OrderConfirmationPage() {
   const id = params.id as string;
   const [order, setOrder] = useState<Order | null>(null);
 
-  useEffect(() => {
+  const loadOrder = () => {
     const found = db.getOrderById(id);
     if (found) {
       setOrder(found);
     }
+  };
+
+  useEffect(() => {
+    loadOrder();
+
+    const handleDbUpdate = () => loadOrder();
+    window.addEventListener('ace-db-updated', handleDbUpdate);
+    window.addEventListener('storage', handleDbUpdate);
+    return () => {
+      window.removeEventListener('ace-db-updated', handleDbUpdate);
+      window.removeEventListener('storage', handleDbUpdate);
+    };
   }, [id]);
 
   if (!order) {
@@ -50,7 +62,7 @@ export default function OrderConfirmationPage() {
           <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
             <CheckCircle2 size={36} />
           </div>
-          <span className="text-xs uppercase tracking-ultra font-bold text-brand-gold block">ACE GARMENT RECEIPT</span>
+          <span className="text-xs uppercase tracking-ultra font-bold text-brand-gold block">DAISY HUB RECEIPT</span>
           <h1 className="font-serif-title text-3xl md:text-5xl font-bold text-brand-dark">ORDER CONFIRMED!</h1>
           <p className="text-xs md:text-sm text-brand-muted max-w-md mx-auto">
             Thank you, <span className="font-semibold text-brand-dark">{order.customerName}</span>. Your order has been placed successfully and is being prepared with care.
@@ -83,9 +95,17 @@ export default function OrderConfirmationPage() {
             </h3>
             <div className="text-xs space-y-2">
               <div>
-                <span className="text-brand-muted block">Status:</span>
-                <span className="font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded inline-block mt-0.5">
-                  {order.orderStatus}
+                <span className="text-brand-muted block font-semibold mb-1">Status:</span>
+                <span className={`font-bold font-mono text-xs px-3 py-1 rounded inline-block border ${
+                  order.orderStatus === 'Delivered'
+                    ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                    : order.orderStatus === 'Pending'
+                    ? 'bg-amber-100 text-amber-900 border-amber-300'
+                    : order.orderStatus === 'Cancelled'
+                    ? 'bg-rose-100 text-rose-900 border-rose-300'
+                    : 'bg-sky-100 text-sky-900 border-sky-300'
+                }`}>
+                  {order.orderStatus === 'Pending' ? '⏳ PENDING' : order.orderStatus === 'Delivered' ? '✅ DELIVERED' : order.orderStatus.toUpperCase()}
                 </span>
               </div>
               <div>
@@ -111,7 +131,7 @@ export default function OrderConfirmationPage() {
               <div key={idx} className="py-4 flex items-center justify-between gap-4 text-xs">
                 <div className="flex items-center gap-4">
                   <div className="relative w-14 aspect-[3/4] bg-brand-cream rounded overflow-hidden shrink-0">
-                    <Image src={item.image} alt={item.productName} fill className="object-cover" />
+                    <Image src={item.image} alt={item.productName} fill unoptimized className="object-cover" />
                   </div>
                   <div>
                     <h4 className="font-semibold text-brand-dark">{item.productName}</h4>

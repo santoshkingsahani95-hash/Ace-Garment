@@ -12,17 +12,21 @@ import {
   Sliders,
   Tag,
   Star,
+  QrCode,
   ArrowLeft,
   Menu,
   X,
   LogOut,
+  ExternalLink,
+  Globe,
+  User as UserIcon,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { user, logout } = useStore();
+  const { user, logout, switchRole } = useStore();
 
   const navItems = [
     { label: 'Dashboard', href: '/admin', icon: LayoutDashboard },
@@ -30,6 +34,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: 'Products', href: '/admin/products', icon: Package },
     { label: 'Inventory', href: '/admin/inventory', icon: Boxes },
     { label: 'Orders', href: '/admin/orders', icon: ShoppingBag },
+    { label: 'Fonepay QR Settings', href: '/admin/fonepay', icon: QrCode },
     { label: 'Homepage CMS', href: '/admin/cms', icon: Sliders },
     { label: 'Coupons', href: '/admin/coupons', icon: Tag },
     { label: 'Reviews', href: '/admin/reviews', icon: Star },
@@ -48,7 +53,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="p-6 border-b border-white/10 flex items-center justify-between">
             <div>
               <span className="text-[10px] text-brand-gold uppercase tracking-ultra font-bold block">SaaS CONTROL CENTER</span>
-              <span className="font-serif-title text-xl font-bold tracking-wider text-white">ACE GARMENT</span>
+              <span className="font-serif-title text-xl font-bold tracking-wider text-white">DAISY HUB</span>
             </div>
             <button
               onClick={() => setIsSidebarOpen(false)}
@@ -85,10 +90,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="p-4 border-t border-white/10 space-y-2">
           <Link
             href="/"
+            className="flex items-center gap-2 px-4 py-2.5 text-xs text-brand-gold hover:text-white transition-colors font-bold uppercase tracking-wider bg-white/5 rounded hover:bg-white/10"
+          >
+            <Globe size={16} />
+            <span>View Live Website ↗</span>
+          </Link>
+
+          <Link
+            href="/account"
             className="flex items-center gap-2 px-4 py-2.5 text-xs text-white/70 hover:text-white transition-colors"
           >
-            <ArrowLeft size={16} />
-            <span>Back to Main Website</span>
+            <UserIcon size={16} />
+            <span>Customer Account View</span>
           </Link>
 
           <button
@@ -120,8 +133,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
 
           <div className="flex items-center gap-3 text-xs">
-            <span className="font-bold text-brand-dark">{user?.name || 'Admin'}</span>
-            <div className="w-8 h-8 rounded-full bg-brand-dark text-white flex items-center justify-center font-bold text-xs">
+            {/* View Storefront Quick Button */}
+            <Link
+              href="/"
+              target="_blank"
+              className="px-3.5 py-1.5 bg-brand-cream hover:bg-brand-dark hover:text-white text-brand-dark text-[11px] font-bold uppercase tracking-wider rounded border border-brand-border transition-all flex items-center gap-1.5 shadow-xs"
+              title="Open storefront in new tab"
+            >
+              <Globe size={14} className="text-brand-gold" />
+              <span>View Store Front</span>
+              <ExternalLink size={12} />
+            </Link>
+
+            <span className="font-bold text-brand-dark hidden sm:inline">{user?.name || 'Admin Manager'}</span>
+            <div className="w-8 h-8 rounded-full bg-brand-dark text-white flex items-center justify-center font-bold text-xs shadow-xs">
               AG
             </div>
           </div>

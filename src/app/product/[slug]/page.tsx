@@ -29,6 +29,7 @@ export default function ProductDetailPage() {
   const [quantity, setQuantity] = useState<number>(1);
   const [activeTab, setActiveTab] = useState<'details' | 'reviews'>('details');
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [isStockShake, setIsStockShake] = useState<boolean>(false);
 
   // Review form state
   const [reviewRating, setReviewRating] = useState<number>(5);
@@ -37,17 +38,25 @@ export default function ProductDetailPage() {
 
   const { addToCart, toggleWishlist, isInWishlist, openSizeGuide, user } = useStore();
 
-  useEffect(() => {
+  const loadProduct = () => {
     const found = db.getProductBySlug(slug);
     if (found) {
       setProduct(found);
-      if (found.colors.length > 0) {
+      if (found.colors.length > 0 && !selectedColorName) {
         setSelectedColorName(found.colors[0].name);
       }
-      setSelectedImageIndex(0);
-      setSelectedSize('');
-      setQuantity(1);
     }
+  };
+
+  useEffect(() => {
+    loadProduct();
+    const handleDbUpdate = () => loadProduct();
+    window.addEventListener('ace-db-updated', handleDbUpdate);
+    window.addEventListener('storage', handleDbUpdate);
+    return () => {
+      window.removeEventListener('ace-db-updated', handleDbUpdate);
+      window.removeEventListener('storage', handleDbUpdate);
+    };
   }, [slug]);
 
   if (!product) {
@@ -69,69 +78,83 @@ export default function ProductDetailPage() {
   const activeColorObj = product.colors.find((c) => c.name === selectedColorName) || product.colors[0];
   const galleryImages = activeColorObj?.images.length ? activeColorObj.images : product.colors[0]?.images || [];
   const activeMainImg = galleryImages[selectedImageIndex] || galleryImages[0] || '';
-  const displayPrice = product.salePrice && product.salePrice < product.price ? product.salePrice : product.price;
-  const inWishlist = isInWishlist(product.id);
-  const relatedProducts = db.getProductsByCategory(product.category).filter((p) => p.id !== product.id).slice(0, 4);
 
-  const handleAddToCart = () => {
-    if (!selectedSize) {
-      setErrorMsg('Please select your size before adding to bag.');
+  const displayPrice =
+    activeColorObj?.salePrice ||
+    activeColorObj?.price ||
+    (product.salePrice && product.salePrice < product.price ? product.salePrice : product.price);
+  const inWishlist = isInWishlist(product.id);
+
+  // Per-color stock level check
+  const colorStock = activeColorObj?.stock !== undefined ? activeColorObj.stock : (product.sizes[0]?.stock ?? 10);
+  const isProductOutOfStock = colorStock === 0;
+
+  const handleIncreaseQuantity = () => {
+    if (isProductOutOfStock) return;
+    if (quantity >= colorStock) {
+      setIsStockShake(true);
+      setTimeout(() => setIsStockShake(false), 200);
       return;
     }
-    addToCart(product, selectedColorName, selectedSize as any, quantity);
+    setQuantity((q) => q + 1);
+  };
+
+  const handleAddToCart = () => {
+    if (isProductOutOfStock) return;
     setErrorMsg('');
+    const colorToUse = selectedColorName || product.colors[0]?.name || 'Default';
+    addToCart(product, colorToUse, 'Free Size', Math.min(quantity, colorStock));
   };
 
   const handleBuyNow = () => {
-    if (!selectedSize) {
-      setErrorMsg('Please select your size before proceeding.');
-      return;
-    }
-    addToCart(product, selectedColorName, selectedSize as any, quantity);
+    if (isProductOutOfStock) return;
+    setErrorMsg('');
+    const colorToUse = selectedColorName || product.colors[0]?.name || 'Default';
+    addToCart(product, colorToUse, 'Free Size', Math.min(quantity, colorStock));
     router.push('/checkout');
   };
 
   const handleSubmitReview = (e: React.FormEvent) => {
     e.preventDefault();
     if (!reviewComment.trim()) return;
-
     const newRev: ProductReview = {
       id: `rev-${Date.now()}`,
-      userName: user ? user.name : 'Anonymous Guest',
+      userName: user?.name || 'Verified Customer',
       rating: reviewRating,
       comment: reviewComment,
       createdAt: new Date().toISOString().split('T')[0],
       verifiedPurchase: true,
     };
-
     db.addReview(product.id, newRev);
-    setReviewSuccess('Thank you! Your review has been submitted.');
+    const updated = db.getProductBySlug(slug);
+    if (updated) setProduct(updated);
     setReviewComment('');
-    setProduct({ ...product, rating: db.getProductBySlug(product.slug)?.rating || product.rating, reviewCount: (product.reviewCount || 0) + 1 });
+    setReviewSuccess('Thank you! Your review has been submitted.');
+    setTimeout(() => setReviewSuccess(''), 4000);
   };
+
+  const relatedProducts = db.getProductsByCategory(product.category).filter((p) => p.id !== product.id).slice(0, 4);
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <AnnouncementBar />
       <Header />
 
-      <main className="flex-1 max-w-7xl mx-auto px-6 py-10 w-full">
+      <main className="flex-1 max-w-7xl mx-auto px-6 md:px-8 py-10 w-full">
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-xs text-brand-muted mb-8 font-sans">
-          <Link href="/" className="hover:text-brand-dark">Home</Link>
+        <nav className="flex items-center gap-2 text-xs text-brand-muted mb-8 uppercase tracking-wider font-medium">
+          <Link href="/" className="hover:text-brand-dark">HOME</Link>
           <span>/</span>
-          <Link href={`/category/${product.category}`} className="hover:text-brand-dark uppercase font-medium">
-            {product.category}
-          </Link>
+          <Link href={`/category/${product.category}`} className="hover:text-brand-dark">{product.category}</Link>
           <span>/</span>
-          <span className="text-brand-dark font-medium line-clamp-1">{product.name}</span>
-        </div>
+          <span className="text-brand-dark font-semibold truncate max-w-xs">{product.name}</span>
+        </nav>
 
-        {/* Product Core Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14">
+        {/* Product Main Display Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 mb-20">
           {/* Left Column: Image Gallery (7 cols on desktop) */}
           <div className="lg:col-span-7 flex flex-col-reverse md:flex-row gap-4">
-            {/* Thumbnails list */}
+            {/* Gallery Thumbnails List */}
             <div className="flex md:flex-col gap-3 overflow-x-auto shrink-0">
               {galleryImages.map((img, idx) => (
                 <button
@@ -141,14 +164,14 @@ export default function ProductDetailPage() {
                     selectedImageIndex === idx ? 'border-brand-dark opacity-100 scale-105' : 'border-transparent opacity-70 hover:opacity-100'
                   }`}
                 >
-                  <Image src={img} alt={`${product.name} thumbnail ${idx}`} fill className="object-cover" />
+                  <Image src={img} alt={`${product.name} thumbnail ${idx}`} fill unoptimized className="object-cover" />
                 </button>
               ))}
             </div>
 
             {/* Main Featured Image */}
             <div className="relative aspect-[3/4] w-full bg-brand-cream rounded-lg overflow-hidden img-zoom-container">
-              <Image src={activeMainImg} alt={product.name} fill priority className="object-cover" />
+              <Image src={activeMainImg} alt={product.name} fill priority unoptimized className="object-cover" />
               {product.isNewArrival && (
                 <span className="absolute top-4 left-4 bg-brand-dark text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-xs">
                   NEW ARRIVAL
@@ -222,66 +245,53 @@ export default function ProductDetailPage() {
               </div>
             </div>
 
-            {/* Size Selector & Size Guide */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <label className="text-xs font-bold uppercase tracking-wider text-brand-dark">
-                  SELECT SIZE: {selectedSize && <span className="font-bold">{selectedSize}</span>}
-                </label>
-                <button
-                  onClick={() => openSizeGuide(product.category)}
-                  className="text-xs font-semibold text-brand-dark hover:text-brand-gold flex items-center gap-1 underline underline-offset-4"
-                >
-                  <Ruler size={14} />
-                  <span>SIZE GUIDE</span>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-6 gap-2">
-                {product.sizes.map((s) => {
-                  const isOutOfStock = s.stock === 0;
-                  const isSelected = selectedSize === s.size;
-                  return (
-                    <button
-                      key={s.size}
-                      disabled={isOutOfStock}
-                      onClick={() => {
-                        setSelectedSize(s.size);
-                        setErrorMsg('');
-                      }}
-                      className={`py-3 text-xs font-semibold rounded border transition-all ${
-                        isOutOfStock
-                          ? 'border-brand-border text-brand-border cursor-not-allowed line-through bg-brand-cream/40'
-                          : isSelected
-                          ? 'border-brand-dark bg-brand-dark text-white'
-                          : 'border-brand-border text-brand-dark hover:border-brand-dark'
-                      }`}
-                    >
-                      {s.size}
-                    </button>
-                  );
-                })}
-              </div>
-              {errorMsg && <p className="text-xs text-brand-sale font-medium mt-1">{errorMsg}</p>}
+            {/* Size Display (Free Size Default) */}
+            <div className="py-3 px-4 bg-brand-cream/60 rounded border border-brand-border flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-brand-dark">
+                SIZE: <span className="text-brand-gold font-extrabold ml-1">FREE SIZE</span>
+              </span>
+              <span className="text-[11px] text-brand-muted font-medium">
+                One Size Fits All
+              </span>
             </div>
 
-            {/* Quantity Selector */}
-            <div className="flex items-center gap-4">
-              <span className="text-xs font-bold uppercase tracking-wider text-brand-dark">QUANTITY:</span>
-              <div className="flex items-center border border-brand-border rounded">
-                <button
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="px-3 py-1.5 hover:bg-brand-cream text-brand-dark font-bold text-sm"
-                >
-                  -
-                </button>
-                <span className="px-4 text-xs font-semibold">{quantity}</span>
-                <button
-                  onClick={() => setQuantity(quantity + 1)}
-                  className="px-3 py-1.5 hover:bg-brand-cream text-brand-dark font-bold text-sm"
-                >
-                  +
-                </button>
+            {/* Quantity Selector & Stock Status */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <span className="text-xs font-bold uppercase tracking-wider text-brand-dark">QUANTITY:</span>
+                <div className="flex items-center border border-brand-border rounded">
+                  <button
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    disabled={isProductOutOfStock}
+                    className="px-3 py-1.5 hover:bg-brand-cream text-brand-dark font-bold text-sm disabled:opacity-40"
+                  >
+                    -
+                  </button>
+                  <span className={`px-4 text-xs font-bold transition-all ${
+                    isStockShake ? 'text-rose-600 animate-shake scale-125' : 'text-brand-dark'
+                  }`}>
+                    {quantity}
+                  </span>
+                  <button
+                    onClick={handleIncreaseQuantity}
+                    disabled={isProductOutOfStock}
+                    className="px-3 py-1.5 hover:bg-brand-cream text-brand-dark font-bold text-sm disabled:opacity-40"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                {isProductOutOfStock ? (
+                  <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded border border-rose-200 uppercase tracking-wider">
+                    OUT OF STOCK
+                  </span>
+                ) : (
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200 uppercase tracking-wider">
+                    IN STOCK
+                  </span>
+                )}
               </div>
             </div>
 
@@ -289,15 +299,17 @@ export default function ProductDetailPage() {
             <div className="space-y-3 pt-2">
               <button
                 onClick={handleAddToCart}
-                className="w-full py-4 bg-brand-dark text-white text-xs font-bold uppercase tracking-widest hover:bg-brand-dark/90 transition-all flex items-center justify-center gap-2 shadow-lg"
+                disabled={isProductOutOfStock}
+                className="w-full py-4 bg-brand-dark text-white text-xs font-bold uppercase tracking-widest hover:bg-brand-dark/90 transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ShoppingBag size={18} />
-                <span>ADD TO BAG</span>
+                <span>{isProductOutOfStock ? 'OUT OF STOCK' : 'ADD TO BAG'}</span>
               </button>
 
               <button
                 onClick={handleBuyNow}
-                className="w-full py-4 border-2 border-brand-dark text-brand-dark hover:bg-brand-cream text-xs font-bold uppercase tracking-widest transition-all"
+                disabled={isProductOutOfStock}
+                className="w-full py-4 border-2 border-brand-dark text-brand-dark hover:bg-brand-cream text-xs font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 BUY IT NOW
               </button>
@@ -325,7 +337,7 @@ export default function ProductDetailPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Shield size={16} className="text-brand-dark" />
-                <span>100% Authentic ACE Garment quality guaranteed.</span>
+                <span>100% Authentic Daisy Hub quality guaranteed.</span>
               </div>
             </div>
           </div>

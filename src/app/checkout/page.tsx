@@ -1,16 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ShieldCheck, Truck, CreditCard, Lock, CheckCircle2, Tag } from 'lucide-react';
+import { ShieldCheck, Truck, Lock, Tag, QrCode, RefreshCw, CheckCircle2, AlertCircle, X, Image as ImageIcon } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { AnnouncementBar } from '@/components/layout/announcement-bar';
 import { Footer } from '@/components/layout/footer';
 import { useStore } from '@/lib/store';
 import { db } from '@/lib/db';
-import { PaymentMethod, Order } from '@/types';
+import { PaymentMethod, Order, FonepaySettings } from '@/types';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -27,14 +27,61 @@ export default function CheckoutPage() {
     landmark: 'Near Standard Chartered Bank',
   });
 
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('esewa');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('fonepay');
   const [isProcessing, setIsProcessing] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [couponStatus, setCouponStatus] = useState<{ valid: boolean; discountAmount: number; message: string } | null>(null);
 
+  // Dynamic Fonepay Settings State (Synced Live from DB)
+  const [fonepaySettings, setFonepaySettings] = useState<FonepaySettings>(() => {
+    const cms = db.getCMS();
+    return (
+      cms.fonepaySettings || {
+        qrMode: 'static',
+        qrImageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop',
+        merchantName: 'DAISY HUB PVT LTD',
+        merchantCode: 'DAISY8849',
+        accountNumber: '9841234567',
+        instructions: 'Scan this official Fonepay QR code using any Mobile Banking app or digital wallet to complete payment.',
+        autoVerifyEnabled: true,
+      }
+    );
+  });
+
+  // Fonepay Dynamic & Admin QR State
+  const [showFonepayModal, setShowFonepayModal] = useState(false);
+  const [fonepayQrData, setFonepayQrData] = useState<string | null>(null);
+  const [fonepayPrn, setFonepayPrn] = useState<string | null>(null);
+  const [userPrnInput, setUserPrnInput] = useState('');
+  const [fonepayStatusMsg, setFonepayStatusMsg] = useState('Waiting for payment scan...');
+  const [fonepayVerifying, setFonepayVerifying] = useState(false);
+  const [fonepayError, setFonepayError] = useState('');
+  const [pendingOrder, setPendingOrder] = useState<Order | null>(null);
+  const [wsSocket, setWsSocket] = useState<WebSocket | null>(null);
+  const [deliveryZone, setDeliveryZone] = useState<'inside' | 'outside'>('inside');
+
   const subtotal = getCartTotal();
   const discount = couponStatus?.valid ? couponStatus.discountAmount : 0;
-  const shipping = subtotal >= 3000 ? 0 : 150;
+
+  // Dynamic delivery fee calculation (Inside Valley vs Outside Valley vs Free Delivery)
+  const allProdsForShipping = db.getProducts();
+  const isFreeDeliveryEligible = cart.length > 0 && cart.some((item) => {
+    const p = allProdsForShipping.find((prod) => prod.id === item.productId || prod.slug === item.productSlug);
+    return p?.isFreeDelivery;
+  });
+
+  const calculatedShipping = isFreeDeliveryEligible
+    ? 0
+    : cart.reduce((max, item) => {
+        const p = allProdsForShipping.find((prod) => prod.id === item.productId || prod.slug === item.productSlug);
+        if (p?.isFreeDelivery) return max;
+        const fee = deliveryZone === 'inside'
+          ? (p?.insideValleyFee !== undefined ? p.insideValleyFee : 100)
+          : (p?.outsideValleyFee !== undefined ? p.outsideValleyFee : 200);
+        return Math.max(max, fee);
+      }, deliveryZone === 'inside' ? 100 : 200);
+
+  const shipping = calculatedShipping;
   const total = Math.max(0, subtotal - discount + shipping);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -48,58 +95,217 @@ export default function CheckoutPage() {
     setCouponStatus(res);
   };
 
-  const handlePlaceOrder = (e: React.FormEvent) => {
+  // Sync Fonepay Settings dynamically with DB updates
+  useEffect(() => {
+    const syncSettings = () => {
+      const cms = db.getCMS();
+      if (cms.fonepaySettings) {
+        setFonepaySettings(cms.fonepaySettings);
+      }
+    };
+    syncSettings();
+    window.addEventListener('ace-db-updated', syncSettings);
+    window.addEventListener('storage', syncSettings);
+    return () => {
+      window.removeEventListener('ace-db-updated', syncSettings);
+      window.removeEventListener('storage', syncSettings);
+      if (wsSocket) wsSocket.close();
+    };
+  }, [wsSocket]);
+
+  const finalizeOrderSuccess = (order: Order) => {
+    const allProds = db.getProducts();
+    order.items.forEach((c) => {
+      const prod = allProds.find((p) => p.id === c.productId || p.name === c.productName);
+      if (prod) {
+        const sizeObj = prod.sizes.find((s) => s.size === c.size);
+        if (sizeObj) {
+          const newStock = Math.max(0, sizeObj.stock - c.quantity);
+          db.updateInventory(prod.id, c.size, newStock);
+        }
+      }
+    });
+
+    db.createOrder(order);
+    clearCart();
+    setIsProcessing(false);
+    setShowFonepayModal(false);
+    if (wsSocket) wsSocket.close();
+    router.push(`/order-confirmation/${order.id}`);
+  };
+
+  const handleCheckFonepayStatus = async (prnToCheck?: string, targetOrder?: Order) => {
+    const prn = prnToCheck || userPrnInput.trim() || fonepayPrn;
+    const orderToFinalize = targetOrder || pendingOrder;
+    if (!orderToFinalize) return;
+
+    setFonepayVerifying(true);
+    setFonepayError('');
+    setFonepayStatusMsg('Verifying payment with Fonepay server...');
+
+    try {
+      const res = await fetch('/api/fonepay/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prn: prn || `PRN-${Date.now()}` }),
+      });
+      const data = await res.json();
+
+      if (data.verified) {
+        setFonepayStatusMsg('PAYMENT VERIFIED & CONFIRMED!');
+        setTimeout(() => {
+          finalizeOrderSuccess(orderToFinalize);
+        }, 1000);
+      } else {
+        setFonepayError('❌ Payment not yet verified! Please scan the Fonepay QR code and complete payment first before proceeding.');
+        setFonepayStatusMsg('Payment pending verification');
+      }
+    } catch (e) {
+      setFonepayError('❌ Failed to connect to Fonepay server. Please complete payment and click verify again.');
+      setFonepayStatusMsg('Verification attempt failed');
+    } finally {
+      setFonepayVerifying(false);
+    }
+  };
+
+  const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0) return;
 
     setIsProcessing(true);
 
-    setTimeout(() => {
-      const orderId = `ord-${Date.now().toString().slice(-6)}`;
-      const orderNum = `ACE-${Math.floor(100000 + Math.random() * 900000)}`;
+    // Re-sync latest Fonepay settings right before opening payment modal
+    const currentCms = db.getCMS();
+    const activeSettings = currentCms.fonepaySettings || fonepaySettings;
+    setFonepaySettings(activeSettings);
 
-      const newOrder: Order = {
-        id: orderId,
-        orderNumber: orderNum,
-        createdAt: new Date().toISOString(),
-        items: cart.map((c) => ({
-          productId: c.productId,
-          productName: c.productName,
-          colorName: c.colorName,
-          size: c.size,
-          quantity: c.quantity,
-          price: c.price,
-          image: c.image,
-        })),
-        subtotal: subtotal,
-        discount: discount,
-        shipping: shipping,
-        total: total,
-        paymentMethod: paymentMethod,
-        paymentStatus: paymentMethod === 'cod' ? 'pending' : 'paid',
-        orderStatus: 'Confirmed',
-        customerName: formData.fullName,
-        customerEmail: formData.email,
-        customerMobile: formData.mobile,
-        shippingAddress: {
-          fullName: formData.fullName,
-          mobile: formData.mobile,
-          email: formData.email,
-          province: formData.province,
-          district: formData.district,
-          city: formData.city,
-          streetAddress: formData.streetAddress,
-          landmark: formData.landmark,
-        },
-        estimatedDelivery: '3-5 Business Days',
-        trackingNumber: `ACE-TRK-${Math.floor(1000 + Math.random() * 9000)}`,
-      };
+    // Validate live inventory before starting order creation
+    const allProds = db.getProducts();
+    for (const item of cart) {
+      const prod = allProds.find((p) => p.id === item.productId || p.slug === item.productSlug);
+      if (prod) {
+        const sizeObj = prod.sizes.find((s) => s.size === item.size);
+        const currentStock = sizeObj ? sizeObj.stock : 0;
+        if (item.quantity > currentStock) {
+          setIsProcessing(false);
+          alert(
+            `Cannot complete order! "${item.productName}" (${item.size}) only has ${currentStock} units remaining in stock. Please update your cart.`
+          );
+          return;
+        }
+      }
+    }
 
-      db.createOrder(newOrder);
-      clearCart();
-      setIsProcessing(false);
-      router.push(`/order-confirmation/${newOrder.id}`);
-    }, 1500);
+    const orderId = `ord-${Date.now().toString().slice(-6)}`;
+    const orderNum = `ACE-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    const newOrder: Order = {
+      id: orderId,
+      orderNumber: orderNum,
+      createdAt: new Date().toISOString(),
+      items: cart.map((c) => ({
+        productId: c.productId,
+        productName: c.productName,
+        colorName: c.colorName,
+        size: c.size,
+        quantity: c.quantity,
+        price: c.price,
+        image: c.image,
+      })),
+      subtotal: subtotal,
+      discount: discount,
+      shipping: shipping,
+      total: total,
+      paymentMethod: paymentMethod,
+      paymentStatus: paymentMethod === 'cod' ? 'pending' : 'paid',
+      orderStatus: 'Pending',
+      customerName: formData.fullName,
+      customerEmail: formData.email,
+      customerMobile: formData.mobile,
+      shippingAddress: {
+        fullName: formData.fullName,
+        mobile: formData.mobile,
+        email: formData.email,
+        province: formData.province,
+        district: formData.district,
+        city: formData.city,
+        streetAddress: formData.streetAddress,
+        landmark: formData.landmark,
+      },
+      estimatedDelivery: '3-5 Business Days',
+      trackingNumber: `ACE-TRK-${Math.floor(1000 + Math.random() * 9000)}`,
+    };
+
+    setPendingOrder(newOrder);
+
+    if (paymentMethod === 'fonepay') {
+      if (activeSettings.qrMode === 'dynamic') {
+        try {
+          const qrRes = await fetch('/api/fonepay/generate-qr', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: total }),
+          });
+          const qrData = await qrRes.json();
+
+          setFonepayQrData(qrData.dynamicQrData || activeSettings.qrImageUrl);
+          setFonepayPrn(qrData.prn || `ACE-PRN-${Date.now().toString().slice(-6)}`);
+          setUserPrnInput(qrData.prn || `ACE-PRN-${Date.now().toString().slice(-6)}`);
+          setFonepayStatusMsg('Waiting for scan & payment verification...');
+          setFonepayError('');
+          setShowFonepayModal(true);
+
+          if (qrData.websocketUrl) {
+            try {
+              if (wsSocket) wsSocket.close();
+              const ws = new WebSocket(qrData.websocketUrl);
+              setWsSocket(ws);
+
+              ws.onmessage = (event) => {
+                try {
+                  let msg = JSON.parse(event.data);
+                  if (typeof msg.transactionStatus === 'string') {
+                    msg = JSON.parse(msg.transactionStatus);
+                  }
+
+                  if (msg.qrVerified === true || msg.scanned === true) {
+                    setFonepayStatusMsg('scanned - waiting for payment completion');
+                  }
+                  if (msg.paymentSuccess === true || msg.paymentStatus === 'SUCCESS') {
+                    setFonepayStatusMsg('paid - verifying transaction...');
+                    handleCheckFonepayStatus(qrData.prn, newOrder);
+                  }
+                  if (msg.paymentSuccess === false || msg.paymentStatus === 'FAILED') {
+                    setFonepayError('❌ Fonepay WebSocket reported payment failed.');
+                    ws.close();
+                  }
+                } catch (err) {}
+              };
+            } catch (err) {}
+          }
+        } catch (err) {
+          setFonepayQrData(activeSettings.qrImageUrl);
+          setFonepayPrn(`ACE-PRN-${Date.now().toString().slice(-6)}`);
+          setUserPrnInput(`ACE-PRN-${Date.now().toString().slice(-6)}`);
+          setFonepayStatusMsg('Waiting for scan...');
+          setShowFonepayModal(true);
+        }
+      } else {
+        // Static Admin Store QR Mode
+        setFonepayQrData(null);
+        const generatedPrn = `ACE-PRN-${Date.now().toString().slice(-6)}`;
+        setFonepayPrn(generatedPrn);
+        setUserPrnInput(generatedPrn);
+        setFonepayStatusMsg('Scan static Fonepay QR & verify payment...');
+        setFonepayError('');
+        setShowFonepayModal(true);
+      }
+    } else {
+      // Cash on Delivery (COD) order placement
+      setTimeout(() => {
+        finalizeOrderSuccess(newOrder);
+      }, 1000);
+    }
   };
 
   if (cart.length === 0) {
@@ -240,6 +446,79 @@ export default function CheckoutPage() {
                     className="w-full p-3 border border-brand-border rounded text-xs focus:outline-none focus:border-brand-dark"
                   />
                 </div>
+
+                <div className="md:col-span-2 pt-2 border-t border-brand-border">
+                  <label className="text-xs font-bold uppercase tracking-wider text-brand-dark block mb-2">
+                    🚚 DELIVERY ZONE & RATES *
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label
+                      onClick={() => setDeliveryZone('inside')}
+                      className={`p-3.5 rounded-lg border-2 cursor-pointer flex items-center justify-between transition-all ${
+                        deliveryZone === 'inside'
+                          ? 'border-brand-dark bg-brand-cream/50 shadow-xs'
+                          : 'border-brand-border bg-white hover:border-brand-dark'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="radio"
+                          name="deliveryZone"
+                          checked={deliveryZone === 'inside'}
+                          onChange={() => setDeliveryZone('inside')}
+                          className="accent-brand-dark cursor-pointer"
+                        />
+                        <div>
+                          <span className="text-xs font-bold text-brand-dark block">Inside Kathmandu Valley</span>
+                          <span className="text-[10px] text-brand-muted">Kathmandu • Lalitpur • Bhaktapur</span>
+                        </div>
+                      </div>
+                      <span className="text-xs font-bold text-brand-dark">
+                        {isFreeDeliveryEligible ? (
+                          <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-mono">FREE</span>
+                        ) : (
+                          `NPR ${cart.reduce((max, item) => {
+                            const p = allProdsForShipping.find((prod) => prod.id === item.productId || prod.slug === item.productSlug);
+                            return Math.max(max, p?.insideValleyFee !== undefined ? p.insideValleyFee : 100);
+                          }, 100)}`
+                        )}
+                      </span>
+                    </label>
+
+                    <label
+                      onClick={() => setDeliveryZone('outside')}
+                      className={`p-3.5 rounded-lg border-2 cursor-pointer flex items-center justify-between transition-all ${
+                        deliveryZone === 'outside'
+                          ? 'border-brand-dark bg-brand-cream/50 shadow-xs'
+                          : 'border-brand-border bg-white hover:border-brand-dark'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="radio"
+                          name="deliveryZone"
+                          checked={deliveryZone === 'outside'}
+                          onChange={() => setDeliveryZone('outside')}
+                          className="accent-brand-dark cursor-pointer"
+                        />
+                        <div>
+                          <span className="text-xs font-bold text-brand-dark block">Outside Kathmandu Valley</span>
+                          <span className="text-[10px] text-brand-muted font-light">All 77 Districts Across Nepal</span>
+                        </div>
+                      </div>
+                      <span className="text-xs font-bold text-brand-dark">
+                        {isFreeDeliveryEligible ? (
+                          <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-mono">FREE</span>
+                        ) : (
+                          `NPR ${cart.reduce((max, item) => {
+                            const p = allProdsForShipping.find((prod) => prod.id === item.productId || prod.slug === item.productSlug);
+                            return Math.max(max, p?.outsideValleyFee !== undefined ? p.outsideValleyFee : 200);
+                          }, 200)}`
+                        )}
+                      </span>
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -252,11 +531,12 @@ export default function CheckoutPage() {
 
               <div className="space-y-3">
                 {[
-                  { id: 'esewa', label: 'eSewa Mobile Wallet', badge: 'Instant Payment' },
-                  { id: 'khalti', label: 'Khalti Digital Wallet', badge: 'Instant Payment' },
-                  { id: 'fonepay', label: 'Fonepay QR / Mobile Banking', badge: 'QR Scan' },
+                  {
+                    id: 'fonepay',
+                    label: 'Fonepay QR / Mobile Banking',
+                    badge: fonepaySettings.qrMode === 'static' ? 'Official Store Static QR' : 'Dynamic QR + WebSocket',
+                  },
                   { id: 'cod', label: 'Cash on Delivery (COD)', badge: 'Pay on Arrival' },
-                  { id: 'card', label: 'Visa / Mastercard Online Card', badge: 'Encrypted' },
                 ].map((pm) => (
                   <label
                     key={pm.id}
@@ -297,7 +577,7 @@ export default function CheckoutPage() {
                   <div key={item.id} className="py-3 flex items-center justify-between gap-3 text-xs">
                     <div className="flex items-center gap-3">
                       <div className="relative w-12 aspect-[3/4] bg-brand-cream rounded overflow-hidden shrink-0">
-                        <Image src={item.image} alt={item.productName} fill className="object-cover" />
+                        <Image src={item.image} alt={item.productName} fill unoptimized className="object-cover" />
                       </div>
                       <div>
                         <h4 className="font-semibold text-brand-dark line-clamp-1">{item.productName}</h4>
@@ -367,7 +647,7 @@ export default function CheckoutPage() {
                 className="w-full py-4 bg-brand-dark text-white text-xs font-bold uppercase tracking-widest hover:bg-brand-dark/90 transition-all shadow-lg flex items-center justify-center gap-2"
               >
                 {isProcessing ? (
-                  <span>CONFIRMING ORDER...</span>
+                  <span>INITIALIZING FONEPAY PAYMENT...</span>
                 ) : (
                   <>
                     <ShieldCheck size={16} />
@@ -377,12 +657,150 @@ export default function CheckoutPage() {
               </button>
 
               <p className="text-[11px] text-brand-muted text-center italic">
-                By placing your order, you agree to ACE GARMENT&apos;s Terms of Service and Privacy Policy.
+                By placing your order, you agree to DAISY HUB&apos;s Terms of Service and Privacy Policy.
               </p>
             </div>
           </div>
         </form>
       </main>
+
+      {/* FONEPAY QR CODE & MANDATORY PAYMENT VERIFICATION MODAL */}
+      {showFonepayModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-xs" onClick={() => setShowFonepayModal(false)} />
+
+          <div className="relative w-full max-w-lg bg-white rounded-xl shadow-2xl z-10 p-6 md:p-8 space-y-5 text-center max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center pb-3 border-b border-brand-border">
+              <div className="flex items-center gap-2 text-left">
+                <div className="w-9 h-9 rounded bg-rose-600 text-white font-bold flex items-center justify-center text-xs tracking-tighter font-mono shadow-xs">
+                  fone
+                </div>
+                <div>
+                  <h3 className="font-serif-title text-base font-bold text-brand-dark uppercase tracking-wider">
+                    FONEPAY QR PAYMENT
+                  </h3>
+                  <span className="text-[10px] text-brand-gold font-bold uppercase tracking-wider block">
+                    {fonepaySettings.merchantName}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowFonepayModal(false);
+                  setIsProcessing(false);
+                  if (wsSocket) wsSocket.close();
+                }}
+                className="p-1.5 text-brand-muted hover:text-brand-dark rounded-full"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Total Amount & Merchant Info */}
+            <div className="bg-brand-cream/60 p-3.5 rounded-lg border border-brand-border flex items-center justify-between text-left">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-brand-muted block">TOTAL PAYABLE AMOUNT</span>
+                <span className="font-serif-title text-2xl font-bold text-brand-dark">
+                  NPR {total.toLocaleString()}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-brand-muted block">MERCHANT ACCT</span>
+                <span className="font-mono text-xs font-bold text-brand-dark">{fonepaySettings.accountNumber}</span>
+              </div>
+            </div>
+
+            {/* FONEPAY QR CODE IMAGE DISPLAY (DYNAMIC VS STATIC) */}
+            <div className="space-y-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-brand-dark block">
+                SCAN THIS FONEPAY QR CODE TO PAY:
+              </span>
+              <div className="relative aspect-square w-56 mx-auto bg-white rounded-xl border-4 border-brand-dark overflow-hidden p-3 shadow-md flex items-center justify-center">
+                {fonepaySettings.qrMode === 'dynamic' && fonepayQrData ? (
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(fonepayQrData)}`}
+                    alt="Fonepay Dynamic QR Code"
+                    className="w-48 h-48 object-contain"
+                  />
+                ) : fonepaySettings.qrImageUrl ? (
+                  <img
+                    src={fonepaySettings.qrImageUrl}
+                    alt="Official Store Fonepay QR Code"
+                    className="w-full h-full object-contain p-1"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-brand-muted">
+                    <ImageIcon size={36} />
+                    <span className="text-[10px] mt-1">QR Code Loading...</span>
+                  </div>
+                )}
+              </div>
+              <p className="text-[11px] text-brand-muted max-w-sm mx-auto leading-relaxed">
+                {fonepaySettings.instructions}
+              </p>
+            </div>
+
+            {/* ERROR BANNER IF PAYMENT IS NOT VERIFIED */}
+            {fonepayError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs font-bold flex items-center gap-2 text-left shadow-xs">
+                <AlertCircle size={18} className="shrink-0 text-rose-600" />
+                <span>{fonepayError}</span>
+              </div>
+            )}
+
+            {/* Live Status Indicator */}
+            <div className="p-2.5 bg-slate-900 text-white rounded-lg flex items-center justify-between text-xs font-mono">
+              <div className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full animate-ping ${
+                  fonepayStatusMsg.includes('VERIFIED') || fonepayStatusMsg.includes('paid') ? 'bg-emerald-400' : 'bg-amber-400'
+                }`} />
+                <span className="font-semibold capitalize text-[11px]">{fonepayStatusMsg}</span>
+              </div>
+              {fonepayVerifying && <RefreshCw size={14} className="animate-spin text-brand-gold" />}
+            </div>
+
+            {/* Reference Input & STRICT VERIFICATION BUTTON */}
+            <div className="space-y-3 pt-1 text-left">
+              <div>
+                <label className="text-[11px] font-bold text-brand-dark block mb-1">
+                  PAYMENT TRANSACTION PRN / REFERENCE CODE *
+                </label>
+                <input
+                  type="text"
+                  value={userPrnInput}
+                  onChange={(e) => setUserPrnInput(e.target.value)}
+                  placeholder="e.g. PRN-172693829"
+                  className="w-full p-2.5 border border-brand-border rounded font-mono text-xs font-bold bg-white focus:outline-none focus:border-brand-dark"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleCheckFonepayStatus()}
+                disabled={fonepayVerifying}
+                className="w-full py-3.5 bg-brand-dark text-white text-xs font-bold uppercase tracking-widest hover:bg-brand-dark/90 rounded shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {fonepayVerifying ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin" />
+                    <span>VERIFYING PAYMENT WITH FONEPAY...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={18} />
+                    <span>VERIFY PAYMENT & COMPLETE ORDER</span>
+                  </>
+                )}
+              </button>
+
+              <p className="text-[10px] text-brand-muted text-center italic">
+                ⚠️ Order checkout WILL NOT PROCEED until Fonepay payment is confirmed and verified.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>

@@ -26,7 +26,7 @@ export default function CategoryPage() {
     image: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=80&w=1600&auto=format&fit=crop',
   });
 
-  useEffect(() => {
+  const loadCategoryData = () => {
     const list = db.getProductsByCategory(slug);
     setProducts(list);
 
@@ -62,6 +62,17 @@ export default function CategoryPage() {
         image: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1600&auto=format&fit=crop',
       });
     }
+  };
+
+  useEffect(() => {
+    loadCategoryData();
+    const handleDbUpdate = () => loadCategoryData();
+    window.addEventListener('ace-db-updated', handleDbUpdate);
+    window.addEventListener('storage', handleDbUpdate);
+    return () => {
+      window.removeEventListener('ace-db-updated', handleDbUpdate);
+      window.removeEventListener('storage', handleDbUpdate);
+    };
   }, [slug]);
 
   return (
@@ -72,9 +83,9 @@ export default function CategoryPage() {
       <main className="flex-1">
         {/* Category Hero Banner */}
         <section className="relative h-64 md:h-80 bg-brand-dark flex items-center justify-center overflow-hidden">
-          <Image src={categoryInfo.image} alt={categoryInfo.title} fill className="object-cover brightness-50" />
+          <Image src={categoryInfo.image} alt={categoryInfo.title} fill unoptimized className="object-cover brightness-50" />
           <div className="relative z-10 text-center text-white space-y-2 px-6">
-            <span className="text-[11px] uppercase tracking-ultra text-brand-gold font-bold">ACE GARMENT</span>
+            <span className="text-[11px] uppercase tracking-ultra text-brand-gold font-bold">DAISY HUB</span>
             <h1 className="font-serif-title text-3xl md:text-5xl font-bold uppercase tracking-wider">{categoryInfo.title}</h1>
             <p className="text-xs md:text-sm text-white/90 max-w-lg mx-auto font-sans font-light">{categoryInfo.desc}</p>
           </div>

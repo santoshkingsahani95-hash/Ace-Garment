@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Search, ShoppingBag, Heart, User, Menu } from 'lucide-react';
+import { Search, ShoppingBag, Heart, User, Menu, Shield } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { MegaMenu } from './mega-menu';
 import { MobileDrawer } from './mobile-drawer';
@@ -48,8 +48,8 @@ export const Header: React.FC = () => {
             </button>
 
             <Link href="/" className="flex items-center gap-2 group">
-              <span className="font-serif-title font-bold text-2xl md:text-3xl tracking-widest text-brand-dark group-hover:opacity-90 transition-opacity">
-                ACE GARMENT
+              <span className="font-serif-title font-bold text-2xl md:text-3xl tracking-widest text-yellow-500 group-hover:opacity-90 transition-opacity">
+                DAISY HUB
               </span>
             </Link>
           </div>
@@ -95,7 +95,8 @@ export const Header: React.FC = () => {
           </nav>
 
           {/* Right Action Icons */}
-          <div className="flex items-center space-x-4 md:space-x-6 text-brand-dark">
+          <div className="flex items-center space-x-3 md:space-x-5 text-brand-dark">
+
             <button
               onClick={openSearch}
               className="p-1.5 hover:text-brand-gold transition-colors focus:outline-none"
@@ -105,14 +106,55 @@ export const Header: React.FC = () => {
               <Search size={20} />
             </button>
 
-            <Link
-              href={isMounted && user ? (user.role === 'ADMIN' ? '/admin' : '/account') : '/login'}
-              className="hidden md:block p-1.5 hover:text-brand-gold transition-colors"
-              aria-label="Account"
-              title={isMounted && user ? `Account (${user.name})` : 'Login'}
-            >
-              <User size={20} />
-            </Link>
+            {/* Account & Panel Menu */}
+            <div className="relative group hidden md:block">
+              <Link
+                href={isMounted && user ? (user.role === 'ADMIN' ? '/admin' : '/account') : '/login'}
+                className="p-1.5 flex items-center gap-1 hover:text-brand-gold transition-colors"
+                aria-label="Account"
+                title={isMounted && user ? `Account (${user.name})` : 'Login'}
+              >
+                <User size={20} />
+                {isMounted && user?.role === 'ADMIN' && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                )}
+              </Link>
+
+              {/* Hover Dropdown Menu */}
+              {isMounted && user && (
+                <div className="absolute right-0 top-full pt-2 w-52 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="bg-white border border-brand-border rounded-lg shadow-xl p-3 text-xs space-y-2">
+                    <div className="pb-2 border-b border-brand-border">
+                      <span className="font-bold text-brand-dark block truncate">{user.name}</span>
+                      <span className="text-[10px] text-brand-muted block truncate font-mono">{user.email}</span>
+                      <span className={`inline-block mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase font-mono ${
+                        user.role === 'ADMIN' ? 'bg-brand-dark text-white' : 'bg-brand-cream text-brand-dark'
+                      }`}>
+                        {user.role} MODE
+                      </span>
+                    </div>
+
+                    <div className="space-y-1 pt-1">
+                      <Link
+                        href="/admin"
+                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-brand-cream font-semibold text-brand-dark"
+                      >
+                        <Shield size={14} className="text-brand-gold" />
+                        <span>Admin Dashboard</span>
+                      </Link>
+
+                      <Link
+                        href="/account"
+                        className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-brand-cream text-brand-dark"
+                      >
+                        <User size={14} />
+                        <span>Customer Account</span>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <Link
               href="/wishlist"

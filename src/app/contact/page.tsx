@@ -35,7 +35,7 @@ export default function ContactPage() {
             <div className="space-y-4 text-xs text-brand-dark/80">
               <div className="flex items-center gap-3">
                 <Mail size={18} className="text-brand-dark" />
-                <span>support@acegarment.com</span>
+                <span>support@daisyhub.com</span>
               </div>
               <div className="flex items-center gap-3">
                 <Phone size={18} className="text-brand-dark" />
@@ -43,7 +43,7 @@ export default function ContactPage() {
               </div>
               <div className="flex items-center gap-3">
                 <MapPin size={18} className="text-brand-dark" />
-                <span>ACE Garment Boutique, Baneshwor Height, Kathmandu, Nepal</span>
+                <span>Daisy Hub Boutique, Baneshwor Height, Kathmandu, Nepal</span>
               </div>
             </div>
 

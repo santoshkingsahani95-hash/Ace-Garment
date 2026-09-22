@@ -9,7 +9,7 @@ export default function FAQPage() {
   const faqs = [
     {
       q: 'Do you deliver across all of Nepal?',
-      a: 'Yes, ACE GARMENT delivers nationwide across all 7 provinces in Nepal. Orders above NPR 3,000 qualify for FREE Express shipping.',
+      a: 'Yes, DAISY HUB delivers nationwide across all 7 provinces in Nepal. Orders above NPR 3,000 qualify for FREE Express shipping.',
     },
     {
       q: 'What payment methods do you accept?',
@@ -20,8 +20,8 @@ export default function FAQPage() {
       a: 'If a dress or top does not fit as expected, you can request a size exchange within 7 days of receiving your package.',
     },
     {
-      q: 'Are your designs exclusive to ACE GARMENT?',
-      a: 'Yes! All ACE GARMENT pieces are original women’s clothing designs crafted with curated high-grade fabrics.',
+      q: 'Are your designs exclusive to DAISY HUB?',
+      a: 'Yes! All DAISY HUB pieces are original women’s clothing designs crafted with curated high-grade fabrics.',
     },
   ];
 

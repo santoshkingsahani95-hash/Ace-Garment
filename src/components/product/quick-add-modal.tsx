@@ -27,12 +27,12 @@ export const QuickAddModal: React.FC = () => {
   const activeImage = activeColorObj?.images[0] || quickAddProduct.colors[0]?.images[0] || '';
   const displayPrice = quickAddProduct.salePrice || quickAddProduct.price;
 
+  const availableStock = activeColorObj?.stock !== undefined ? activeColorObj.stock : (quickAddProduct.sizes[0]?.stock ?? 10);
+  const isOutOfStock = availableStock === 0;
+
   const handleAdd = () => {
-    if (!selectedSize) {
-      setErrorMsg('Please select a size before adding to bag.');
-      return;
-    }
-    addToCart(quickAddProduct, selectedColor, selectedSize as any, quantity);
+    if (isOutOfStock) return;
+    addToCart(quickAddProduct, selectedColor, 'Free Size', Math.min(quantity, availableStock));
     closeQuickAdd();
   };
 
@@ -54,13 +54,27 @@ export const QuickAddModal: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2">
           {/* Image */}
           <div className="relative aspect-[3/4] bg-brand-cream md:h-full">
-            <Image src={activeImage} alt={quickAddProduct.name} fill className="object-cover" />
+            <Image src={activeImage} alt={quickAddProduct.name} fill unoptimized className="object-cover" />
+            {isOutOfStock && (
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                <span className="bg-rose-600 text-white font-bold text-xs px-3 py-1 uppercase tracking-widest rounded shadow-md">
+                  OUT OF STOCK
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Details & Controls */}
           <div className="p-6 flex flex-col justify-between space-y-4">
             <div>
-              <span className="text-[10px] text-brand-muted uppercase tracking-widest font-semibold">QUICK ADD</span>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-brand-muted uppercase tracking-widest font-semibold">QUICK ADD</span>
+                {isOutOfStock && (
+                  <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded uppercase tracking-wider">
+                    OUT OF STOCK
+                  </span>
+                )}
+              </div>
               <h3 className="font-serif-title text-xl font-bold text-brand-dark mt-1">{quickAddProduct.name}</h3>
 
               {/* Price */}
@@ -98,49 +112,28 @@ export const QuickAddModal: React.FC = () => {
               </div>
             </div>
 
-            {/* Sizes */}
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="text-xs font-semibold uppercase tracking-wider text-brand-dark">
-                  SELECT SIZE: {selectedSize && <span className="font-bold">{selectedSize}</span>}
-                </label>
-              </div>
-
-              <div className="grid grid-cols-6 gap-1.5">
-                {quickAddProduct.sizes.map((s) => {
-                  const isOutOfStock = s.stock === 0;
-                  const isSelected = selectedSize === s.size;
-                  return (
-                    <button
-                      key={s.size}
-                      disabled={isOutOfStock}
-                      onClick={() => {
-                        setSelectedSize(s.size);
-                        setErrorMsg('');
-                      }}
-                      className={`py-2 text-xs font-semibold rounded border transition-all ${
-                        isOutOfStock
-                          ? 'border-brand-border text-brand-border cursor-not-allowed line-through bg-brand-cream/40'
-                          : isSelected
-                          ? 'border-brand-dark bg-brand-dark text-white'
-                          : 'border-brand-border text-brand-dark hover:border-brand-dark'
-                      }`}
-                    >
-                      {s.size}
-                    </button>
-                  );
-                })}
-              </div>
-              {errorMsg && <p className="text-[11px] text-brand-sale font-medium mt-1.5">{errorMsg}</p>}
+            {/* Size Display (Free Size Default) */}
+            <div className="py-2.5 px-4 bg-brand-cream/60 rounded border border-brand-border flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-brand-dark">
+                SIZE: <span className="text-brand-gold font-extrabold ml-1">FREE SIZE</span>
+              </span>
+              <span className="text-[11px] text-brand-muted font-medium">
+                One Size Fits All
+              </span>
             </div>
 
             {/* Action */}
             <button
               onClick={handleAdd}
-              className="w-full py-3.5 bg-brand-dark text-white text-xs font-semibold uppercase tracking-widest hover:bg-brand-dark/90 transition-colors flex items-center justify-center gap-2"
+              disabled={isOutOfStock}
+              className={`w-full py-3.5 text-xs font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-2 ${
+                isOutOfStock
+                  ? 'bg-rose-600 text-white cursor-not-allowed opacity-90'
+                  : 'bg-brand-dark text-white hover:bg-brand-dark/90'
+              }`}
             >
               <ShoppingBag size={16} />
-              <span>ADD TO BAG</span>
+              <span>{isOutOfStock ? 'OUT OF STOCK' : 'ADD TO BAG'}</span>
             </button>
           </div>
         </div>

@@ -30,14 +30,14 @@ export const Footer: React.FC = () => {
           {/* Column 1: Brand */}
           <div className="lg:col-span-2 space-y-4">
             <Link href="/" className="font-serif-title text-2xl md:text-3xl font-bold tracking-widest block text-white">
-              ACE GARMENT
+              DAISY HUB
             </Link>
             <p className="text-xs text-white/70 max-w-sm leading-relaxed font-sans">
               Modern women’s fashion made for your everyday confidence. Clean silhouettes, luxury fabrics, and understated elegance.
             </p>
 
             <div className="pt-4">
-              <span className="text-[11px] uppercase tracking-widest text-white/50 block mb-2 font-semibold">JOIN THE ACE CLUB</span>
+              <span className="text-[11px] uppercase tracking-widest text-white/50 block mb-2 font-semibold">JOIN THE DAISY HUB CLUB</span>
               <form onSubmit={handleSubscribe} className="flex max-w-sm">
                 <input
                   type="email"
@@ -145,7 +145,7 @@ export const Footer: React.FC = () => {
             <ul className="space-y-2.5 text-xs text-white/70 font-sans mb-6">
               <li>
                 <Link href="/about" className="hover:text-white transition-colors">
-                  About ACE Garment
+                  About Daisy Hub
                 </Link>
               </li>
               <li>
@@ -163,7 +163,7 @@ export const Footer: React.FC = () => {
             <span className="text-[11px] uppercase tracking-widest text-white/50 block mb-3 font-semibold">FOLLOW US</span>
             <div className="flex gap-3 text-white/70">
               <a
-                href="https://instagram.com"
+                href="https://www.instagram.com/daisy_hubnp?stkn=MTh4dTQzeGxoMXpnYg=="
                 target="_blank"
                 rel="noreferrer"
                 className="p-2 bg-white/10 rounded-full hover:bg-white hover:text-brand-dark transition-all"
@@ -185,9 +185,9 @@ export const Footer: React.FC = () => {
         </div>
 
         {/* Bottom Bar */}
-        <div className="pt-8 flex flex-col md:flex-row items-center justify-between text-xs text-white/50 gap-4 font-sans">
-          <p>© 2026 ACE GARMENT. All Rights Reserved. Designed for modern women.</p>
-          <div className="flex gap-4 text-[11px]">
+        <div className="pt-8 flex flex-col md:flex-row items-center justify-between text-xs text-white/50 gap-4 font-sans border-t border-white/5">
+          <p>© 2026 DAISY HUB. All Rights Reserved. Designed for modern women.</p>
+          <div className="flex items-center gap-4 text-[11px]">
             <span>Secured Payments: eSewa • Khalti • Fonepay • COD</span>
           </div>
         </div>

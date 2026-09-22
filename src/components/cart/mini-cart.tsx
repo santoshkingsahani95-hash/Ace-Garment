@@ -77,7 +77,7 @@ export const MiniCart: React.FC = () => {
             cart.map((item) => (
               <div key={item.id} className="flex gap-4 p-3 bg-brand-cream/30 rounded border border-brand-border/60">
                 <div className="relative w-20 aspect-[3/4] rounded overflow-hidden bg-brand-cream shrink-0">
-                  <Image src={item.image} alt={item.productName} fill className="object-cover" />
+                  <Image src={item.image} alt={item.productName} fill unoptimized className="object-cover" />
                 </div>
 
                 <div className="flex-1 flex flex-col justify-between">

@@ -1,7 +1,7 @@
-import { Product, Category, Collection, Order, Coupon, HomepageCMS, CustomerUser, ProductReview } from '@/types';
+import { Product, Category, Collection, Order, Coupon, HomepageCMS, CustomerUser, ProductReview, ColorOption } from '@/types';
 import { seedProducts, initialCategories, initialCollections, initialCMS } from './seed-data';
 
-// In-memory persistent data store for server side & client fallback
+// In-memory persistent data store for server side & client fallback with localStorage sync
 class DataStore {
   private products: Product[] = [...seedProducts];
   private categories: Category[] = [...initialCategories];
@@ -38,7 +38,7 @@ class DataStore {
       total: 3498,
       paymentMethod: 'esewa',
       paymentStatus: 'paid',
-      orderStatus: 'Processing',
+      orderStatus: 'Pending',
       customerName: 'Aayusha Karki',
       customerEmail: 'aayusha.k@example.com',
       customerMobile: '+977 9841234567',
@@ -75,12 +75,12 @@ class DataStore {
       active: true,
     },
   ];
-  private newsletterSubscribers: string[] = ['vip@acegarment.com'];
+  private newsletterSubscribers: string[] = ['vip@daisyhub.com'];
   private users: CustomerUser[] = [
     {
       id: 'usr-admin-1',
       name: 'Admin Manager',
-      email: 'admin@acegarment.com',
+      email: 'admin@daisyhub.com',
       mobile: '+977 9800000000',
       role: 'ADMIN',
       registrationDate: '2026-01-01',
@@ -95,142 +95,381 @@ class DataStore {
     },
   ];
 
+  constructor() {
+    this.loadFromLocalStorage();
+  }
+
+  private loadFromLocalStorage() {
+    if (typeof window === 'undefined') return;
+    try {
+      const storedCms = localStorage.getItem('ace_db_cms');
+      if (storedCms) this.cms = JSON.parse(storedCms);
+
+      const storedProds = localStorage.getItem('ace_db_products');
+      if (storedProds) this.products = JSON.parse(storedProds);
+
+      const storedCats = localStorage.getItem('ace_db_categories');
+      if (storedCats) this.categories = JSON.parse(storedCats);
+
+      const storedOrders = localStorage.getItem('ace_db_orders');
+      if (storedOrders) this.orders = JSON.parse(storedOrders);
+
+      const storedCoupons = localStorage.getItem('ace_db_coupons');
+      if (storedCoupons) this.coupons = JSON.parse(storedCoupons);
+    } catch (e) {
+      console.error('Failed to load from localStorage:', e);
+    }
+  }
+
+  private saveAndBroadcast(key: string, data: any) {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+      window.dispatchEvent(new CustomEvent('ace-db-updated', { detail: { key } }));
+    } catch (e) {
+      console.error('Failed to save to localStorage, using sessionStorage fallback:', e);
+      try {
+        sessionStorage.setItem(key, JSON.stringify(data));
+        window.dispatchEvent(new CustomEvent('ace-db-updated', { detail: { key } }));
+      } catch (err) {}
+    }
+  }
+
   // Products
   getProducts(): Product[] {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('ace_db_products') || sessionStorage.getItem('ace_db_products');
+      if (stored) {
+        try {
+          const parsed: Product[] = JSON.parse(stored);
+          this.products = parsed.map((p) => ({
+            ...p,
+            sizes: (p.sizes || []).map((s) => ({
+              ...s,
+              stock: isNaN(Number(s.stock)) || Number(s.stock) > 999 ? 15 : Math.max(0, Math.min(999, Math.floor(Number(s.stock)))),
+            })),
+          }));
+        } catch (e) {}
+      }
+    }
     return this.products;
   }
 
   getProductBySlug(slug: string): Product | undefined {
-    return this.products.find((p) => p.slug === slug || p.id === slug);
+    return this.getProducts().find((p) => p.slug === slug || p.id === slug);
   }
 
   getProductsByCategory(categorySlug: string): Product[] {
+    const prods = this.getProducts();
     if (categorySlug === 'new-arrivals') {
-      return this.products.filter((p) => p.isNewArrival || p.collections?.includes('new-arrivals'));
+      return prods.filter((p) => p.isNewArrival || p.collections?.includes('new-arrivals'));
     }
     if (categorySlug === 'sale') {
-      return this.products.filter((p) => p.isSale || p.salePrice !== undefined);
+      return prods.filter((p) => p.isSale || p.salePrice !== undefined);
     }
     if (categorySlug === 'trending') {
-      return this.products.filter((p) => p.isTrending);
+      return prods.filter((p) => p.isTrending);
     }
     if (categorySlug === 'best-sellers') {
-      return this.products.filter((p) => p.isBestSeller);
+      return prods.filter((p) => p.isBestSeller);
     }
-    return this.products.filter((p) => p.category.toLowerCase() === categorySlug.toLowerCase());
+    return prods.filter((p) => p.category.toLowerCase() === categorySlug.toLowerCase());
   }
 
   saveProduct(product: Product): Product {
-    const existingIndex = this.products.findIndex((p) => p.id === product.id);
+    const prods = this.getProducts();
+    const existingIndex = prods.findIndex((p) => p.id === product.id);
     if (existingIndex >= 0) {
-      this.products[existingIndex] = product;
+      prods[existingIndex] = product;
     } else {
-      this.products.unshift(product);
+      prods.unshift(product);
     }
+    this.products = prods;
+    this.saveAndBroadcast('ace_db_products', this.products);
     return product;
   }
 
   deleteProduct(id: string): boolean {
-    const initialLen = this.products.length;
-    this.products = this.products.filter((p) => p.id !== id);
+    const prods = this.getProducts();
+    const initialLen = prods.length;
+    this.products = prods.filter((p) => p.id !== id);
+    this.saveAndBroadcast('ace_db_products', this.products);
     return this.products.length < initialLen;
   }
 
   updateInventory(productId: string, size: string, newStock: number): boolean {
-    const prod = this.products.find((p) => p.id === productId);
+    const prods = this.getProducts();
+    const prod = prods.find((p) => p.id === productId);
     if (!prod) return false;
-    const targetSize = prod.sizes.find((s) => s.size === size);
-    if (targetSize) {
-      targetSize.stock = newStock;
-      return true;
+    const cleanStock = isNaN(Number(newStock)) ? 0 : Math.max(0, Math.min(999, Math.floor(Number(newStock))));
+    if (prod.sizes && prod.sizes.length > 0) {
+      prod.sizes = prod.sizes.map((s) => ({ ...s, stock: cleanStock }));
+    } else {
+      prod.sizes = [{ size: 'Free Size', stock: cleanStock }];
     }
-    return false;
+    // Set color stock fallback
+    if (prod.colors) {
+      prod.colors.forEach((c) => (c.stock = cleanStock));
+    }
+    this.products = prods;
+    this.saveAndBroadcast('ace_db_products', this.products);
+    return true;
+  }
+
+  updateColorStock(productId: string, colorName: string, newStock: number): boolean {
+    const prods = this.getProducts();
+    const prod = prods.find((p) => p.id === productId);
+    if (!prod) return false;
+    const cleanStock = isNaN(Number(newStock)) ? 0 : Math.max(0, Math.min(999, Math.floor(Number(newStock))));
+    const targetColor = prod.colors.find((c) => c.name.toLowerCase() === colorName.toLowerCase());
+    if (targetColor) {
+      targetColor.stock = cleanStock;
+    } else if (prod.colors.length > 0) {
+      prod.colors[0].stock = cleanStock;
+    }
+    // Update overall product stock as sum of color stocks
+    const totalColorStock = prod.colors.reduce((acc, c) => acc + (c.stock !== undefined ? c.stock : 10), 0);
+    prod.sizes = [{ size: 'Free Size', stock: totalColorStock }];
+
+    this.products = prods;
+    this.saveAndBroadcast('ace_db_products', this.products);
+    return true;
   }
 
   addReview(productId: string, review: ProductReview): boolean {
-    const prod = this.products.find((p) => p.id === productId);
+    const prods = this.getProducts();
+    const prod = prods.find((p) => p.id === productId);
     if (!prod) return false;
     if (!prod.reviews) prod.reviews = [];
     prod.reviews.unshift(review);
     prod.reviewCount = prod.reviews.length;
     const totalRating = prod.reviews.reduce((acc, r) => acc + r.rating, 0);
     prod.rating = Number((totalRating / prod.reviewCount).toFixed(1));
+    this.products = prods;
+    this.saveAndBroadcast('ace_db_products', this.products);
     return true;
   }
 
   // Categories & Collections
   getCategories(): Category[] {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('ace_db_categories');
+      if (stored) {
+        try {
+          this.categories = JSON.parse(stored);
+        } catch (e) {}
+      }
+    }
     return this.categories;
   }
 
+  addCategory(category: Category): Category {
+    const cats = this.getCategories();
+    const existingIndex = cats.findIndex((c) => c.id === category.id || c.slug === category.slug);
+    if (existingIndex >= 0) {
+      cats[existingIndex] = category;
+    } else {
+      cats.push(category);
+    }
+    this.categories = cats;
+    this.saveAndBroadcast('ace_db_categories', this.categories);
+    return category;
+  }
+
+  deleteCategory(id: string): boolean {
+    const cats = this.getCategories();
+    const initialLen = cats.length;
+    this.categories = cats.filter((c) => c.id !== id && c.slug !== id);
+    this.saveAndBroadcast('ace_db_categories', this.categories);
+    return this.categories.length < initialLen;
+  }
+
   updateCategory(id: string, updatedFields: Partial<Category>): Category | undefined {
-    const cat = this.categories.find((c) => c.id === id || c.slug === id);
+    const cats = this.getCategories();
+    const cat = cats.find((c) => c.id === id || c.slug === id);
     if (cat) {
       if (updatedFields.name) cat.name = updatedFields.name;
       if (updatedFields.description) cat.description = updatedFields.description;
       if (updatedFields.image) cat.image = updatedFields.image;
       if (updatedFields.subcategories) cat.subcategories = updatedFields.subcategories;
+      this.categories = cats;
+      this.saveAndBroadcast('ace_db_categories', this.categories);
     }
     return cat;
   }
 
   updateProductPhoto(productId: string, newPhotoUrl: string): boolean {
-    const prod = this.products.find((p) => p.id === productId);
+    const prods = this.getProducts();
+    const prod = prods.find((p) => p.id === productId);
     if (!prod) return false;
     if (prod.colors.length === 0) {
       prod.colors = [{ name: 'Default', code: '#111111', images: [newPhotoUrl, newPhotoUrl] }];
     } else {
       prod.colors[0].images = [newPhotoUrl, newPhotoUrl];
     }
+    this.products = prods;
+    this.saveAndBroadcast('ace_db_products', this.products);
+    return true;
+  }
+
+  updateProductColors(productId: string, colors: ColorOption[]): boolean {
+    const prods = this.getProducts();
+    const prod = prods.find((p) => p.id === productId);
+    if (!prod) return false;
+    prod.colors = colors;
+    this.products = prods;
+    this.saveAndBroadcast('ace_db_products', this.products);
     return true;
   }
 
   getCollections(): Collection[] {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('ace_db_collections');
+      if (stored) {
+        try {
+          this.collections = JSON.parse(stored);
+        } catch (e) {}
+      }
+    }
     return this.collections;
+  }
+
+  saveCollection(collection: Collection): Collection {
+    const cols = this.getCollections();
+    const existingIndex = cols.findIndex((c) => c.id === collection.id || c.slug === collection.slug);
+    if (existingIndex >= 0) {
+      cols[existingIndex] = collection;
+    } else {
+      cols.push(collection);
+    }
+    this.collections = cols;
+    this.saveAndBroadcast('ace_db_collections', this.collections);
+    return collection;
+  }
+
+  deleteCollection(id: string): boolean {
+    const cols = this.getCollections();
+    const initialLen = cols.length;
+    this.collections = cols.filter((c) => c.id !== id && c.slug !== id);
+    this.saveAndBroadcast('ace_db_collections', this.collections);
+    return this.collections.length < initialLen;
+  }
+
+  toggleProductFlag(productId: string, flag: 'isTrending' | 'isNewArrival' | 'isBestSeller' | 'isSale', value: boolean): boolean {
+    const prods = this.getProducts();
+    const prod = prods.find((p) => p.id === productId);
+    if (!prod) return false;
+    prod[flag] = value;
+    if (flag === 'isSale' && !value) {
+      delete prod.salePrice;
+      delete prod.discountPercentage;
+    }
+    this.products = prods;
+    this.saveAndBroadcast('ace_db_products', this.products);
+    return true;
   }
 
   // CMS
   getCMS(): HomepageCMS {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('ace_db_cms') || sessionStorage.getItem('ace_db_cms');
+      if (stored) {
+        try {
+          this.cms = JSON.parse(stored);
+        } catch (e) {}
+      }
+    }
     return this.cms;
   }
 
   updateCMS(newCms: Partial<HomepageCMS>): HomepageCMS {
-    this.cms = { ...this.cms, ...newCms };
+    const current = this.getCMS();
+    this.cms = { ...current, ...newCms };
+    this.saveAndBroadcast('ace_db_cms', this.cms);
     return this.cms;
   }
 
   // Orders
   getOrders(): Order[] {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('ace_db_orders');
+      if (stored) {
+        try {
+          this.orders = JSON.parse(stored);
+        } catch (e) {}
+      }
+    }
     return this.orders;
   }
 
   getOrderById(id: string): Order | undefined {
-    return this.orders.find((o) => o.id === id || o.orderNumber === id);
+    return this.getOrders().find((o) => o.id === id || o.orderNumber === id);
   }
 
   createOrder(order: Order): Order {
-    this.orders.unshift(order);
+    const ords = this.getOrders();
+    ords.unshift(order);
+    this.orders = ords;
+    this.saveAndBroadcast('ace_db_orders', this.orders);
+
+    // Auto-sync to Google Sheet Webhook if configured in localStorage
+    if (typeof window !== 'undefined') {
+      try {
+        const webhookUrl = localStorage.getItem('ace_google_sheet_webhook');
+        if (webhookUrl && webhookUrl.startsWith('http')) {
+          fetch(webhookUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderNumber: order.orderNumber,
+              createdAt: new Date(order.createdAt).toLocaleString(),
+              customerName: order.customerName,
+              customerMobile: order.customerMobile,
+              customerEmail: order.customerEmail,
+              address: `${order.shippingAddress?.streetAddress || ''}, ${order.shippingAddress?.city || ''}`,
+              items: order.items.map((i) => `${i.productName} (${i.size}, ${i.colorName}) x${i.quantity}`).join(' | '),
+              total: order.total,
+              paymentMethod: order.paymentMethod,
+            }),
+          }).catch(() => {});
+        }
+      } catch (e) {}
+    }
+
     return order;
   }
 
   updateOrderStatus(orderId: string, status: Order['orderStatus']): Order | undefined {
-    const ord = this.orders.find((o) => o.id === orderId || o.orderNumber === orderId);
+    const ords = this.getOrders();
+    const ord = ords.find((o) => o.id === orderId || o.orderNumber === orderId);
     if (ord) {
       ord.orderStatus = status;
       if (status === 'Delivered') {
         ord.paymentStatus = 'paid';
       }
+      this.orders = ords;
+      this.saveAndBroadcast('ace_db_orders', this.orders);
     }
     return ord;
   }
 
   // Coupons
   getCoupons(): Coupon[] {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('ace_db_coupons');
+      if (stored) {
+        try {
+          this.coupons = JSON.parse(stored);
+        } catch (e) {}
+      }
+    }
     return this.coupons;
   }
 
   validateCoupon(code: string, subtotal: number): { valid: boolean; discountAmount: number; message: string } {
-    const coupon = this.coupons.find((c) => c.code.toUpperCase() === code.trim().toUpperCase() && c.active);
+    const coupons = this.getCoupons();
+    const coupon = coupons.find((c) => c.code.toUpperCase() === code.trim().toUpperCase() && c.active);
     if (!coupon) {
       return { valid: false, discountAmount: 0, message: 'Invalid or expired coupon code.' };
     }
@@ -258,7 +497,10 @@ class DataStore {
   }
 
   addCoupon(coupon: Coupon): Coupon {
-    this.coupons.push(coupon);
+    const coupons = this.getCoupons();
+    coupons.push(coupon);
+    this.coupons = coupons;
+    this.saveAndBroadcast('ace_db_coupons', this.coupons);
     return coupon;
   }
 

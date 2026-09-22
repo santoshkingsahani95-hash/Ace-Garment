@@ -70,7 +70,7 @@ export default function CartPage() {
                     {/* Item info */}
                     <div className="col-span-6 flex gap-4 w-full">
                       <div className="relative w-20 aspect-[3/4] bg-brand-cream rounded overflow-hidden shrink-0">
-                        <Image src={item.image} alt={item.productName} fill className="object-cover" />
+                        <Image src={item.image} alt={item.productName} fill unoptimized className="object-cover" />
                       </div>
                       <div className="space-y-1">
                         <Link href={`/product/${item.productSlug}`} className="font-semibold text-xs text-brand-dark hover:text-brand-gold">
