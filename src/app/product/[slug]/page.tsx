@@ -86,8 +86,10 @@ export default function ProductDetailPage() {
   const inWishlist = isInWishlist(product.id);
 
   // Per-color stock level check
-  const colorStock = activeColorObj?.stock !== undefined ? activeColorObj.stock : (product.sizes[0]?.stock ?? 10);
-  const isProductOutOfStock = colorStock === 0;
+  const totalColorStock = (product.colors || []).reduce((acc, c) => acc + (c.stock !== undefined ? c.stock : 0), 0);
+  const totalSizeStock = (product.sizes || []).reduce((acc, s) => acc + (s.stock || 0), 0);
+  const colorStock = activeColorObj?.stock !== undefined ? activeColorObj.stock : (product.colors && product.colors.length > 0 ? totalColorStock : totalSizeStock);
+  const isProductOutOfStock = product.isOutOfStock === true || colorStock <= 0;
 
   const handleIncreaseQuantity = () => {
     if (isProductOutOfStock) return;

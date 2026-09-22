@@ -51,12 +51,24 @@ export const useStore = create<StoreState>()(
       // Cart State
       cart: [],
       addToCart: (product, colorName, size, quantity = 1) => {
-        const totalProductStock = product.sizes.reduce((acc, s) => acc + s.stock, 0);
-        const sizeObj = product.sizes.find((s) => s.size === size);
-        const maxStock = sizeObj ? sizeObj.stock : (totalProductStock > 0 ? totalProductStock : 50);
+        const targetColor = product.colors.find((c) => c.name === colorName) || product.colors[0];
+        const colorStock = targetColor?.stock !== undefined ? targetColor.stock : undefined;
+        const totalSizeStock = (product.sizes || []).reduce((acc, s) => acc + (s.stock || 0), 0);
+
+        let maxStock = 0;
+        if (colorStock !== undefined) {
+          maxStock = colorStock;
+        } else {
+          maxStock = totalSizeStock;
+        }
+
+        if (product.isOutOfStock) {
+          maxStock = 0;
+        }
+
         if (maxStock <= 0) {
           if (typeof window !== 'undefined') {
-            alert(`Sorry! ${product.name} is currently OUT OF STOCK.`);
+            alert(`Sorry! "${product.name}" (${colorName}) is currently OUT OF STOCK and cannot be added to your bag.`);
           }
           return;
         }

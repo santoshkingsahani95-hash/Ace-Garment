@@ -190,12 +190,42 @@ export default function CartPage() {
                   </div>
                 </div>
 
-                <Link
-                  href="/checkout"
-                  className="w-full py-4 bg-brand-dark text-white text-xs font-bold uppercase tracking-widest text-center block hover:bg-brand-dark/90 transition-all shadow-md"
-                >
-                  PROCEED TO CHECKOUT →
-                </Link>
+                {/* Out of Stock Warning if any item is out of stock */}
+                {(() => {
+                  const allProds = db.getProducts();
+                  const outOfStockItems = cart.filter((item) => {
+                    const prod = allProds.find((p) => p.id === item.productId || p.slug === item.productSlug);
+                    if (!prod || prod.isOutOfStock) return true;
+                    const targetColor = prod.colors.find((c) => c.name === item.colorName);
+                    const colorStock = targetColor?.stock !== undefined ? targetColor.stock : (prod.sizes[0]?.stock ?? 0);
+                    return colorStock <= 0;
+                  });
+
+                  if (outOfStockItems.length > 0) {
+                    return (
+                      <div className="space-y-2">
+                        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded font-medium">
+                          ⚠️ <strong>Out of Stock Alert:</strong> {outOfStockItems.map(i => i.productName).join(', ')} is OUT OF STOCK. Please remove from bag to proceed.
+                        </div>
+                        <button
+                          disabled
+                          className="w-full py-4 bg-rose-600/60 text-white text-xs font-bold uppercase tracking-widest text-center cursor-not-allowed block shadow-sm"
+                        >
+                          REMOVE OUT OF STOCK ITEMS TO CHECKOUT
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <Link
+                      href="/checkout"
+                      className="w-full py-4 bg-brand-dark text-white text-xs font-bold uppercase tracking-widest text-center block hover:bg-brand-dark/90 transition-all shadow-md"
+                    >
+                      PROCEED TO CHECKOUT →
+                    </Link>
+                  );
+                })()}
               </div>
             </div>
           </div>

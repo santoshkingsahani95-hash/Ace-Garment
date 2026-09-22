@@ -27,8 +27,10 @@ export const QuickAddModal: React.FC = () => {
   const activeImage = activeColorObj?.images[0] || quickAddProduct.colors[0]?.images[0] || '';
   const displayPrice = quickAddProduct.salePrice || quickAddProduct.price;
 
-  const availableStock = activeColorObj?.stock !== undefined ? activeColorObj.stock : (quickAddProduct.sizes[0]?.stock ?? 10);
-  const isOutOfStock = availableStock === 0;
+  const totalColorStock = (quickAddProduct.colors || []).reduce((acc, c) => acc + (c.stock !== undefined ? c.stock : 0), 0);
+  const totalSizeStock = (quickAddProduct.sizes || []).reduce((acc, s) => acc + (s.stock || 0), 0);
+  const availableStock = activeColorObj?.stock !== undefined ? activeColorObj.stock : (quickAddProduct.colors && quickAddProduct.colors.length > 0 ? totalColorStock : totalSizeStock);
+  const isOutOfStock = quickAddProduct.isOutOfStock === true || availableStock <= 0;
 
   const handleAdd = () => {
     if (isOutOfStock) return;

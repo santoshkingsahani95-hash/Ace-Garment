@@ -5,12 +5,14 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight } from 'lucide-react';
 import { useStore } from '@/lib/store';
+import { db } from '@/lib/db';
 
 export const MiniCart: React.FC = () => {
   const { isMiniCartOpen, closeMiniCart, cart, updateQuantity, removeFromCart, getCartTotal } = useStore();
 
   if (!isMiniCartOpen) return null;
 
+  const allProds = db.getProducts();
   const total = getCartTotal();
   const freeShippingThreshold = 3000;
   const progress = Math.min(100, (total / freeShippingThreshold) * 100);
@@ -74,61 +76,81 @@ export const MiniCart: React.FC = () => {
               </button>
             </div>
           ) : (
-            cart.map((item) => (
-              <div key={item.id} className="flex gap-4 p-3 bg-brand-cream/30 rounded border border-brand-border/60">
-                <div className="relative w-20 aspect-[3/4] rounded overflow-hidden bg-brand-cream shrink-0">
-                  <Image src={item.image} alt={item.productName} fill unoptimized className="object-cover" />
-                </div>
+            cart.map((item) => {
+              const prod = allProds.find((p) => p.id === item.productId || p.slug === item.productSlug);
+              const targetColor = prod?.colors.find((c) => c.name === item.colorName);
+              const liveStock = targetColor?.stock !== undefined ? targetColor.stock : (prod?.sizes[0]?.stock ?? 0);
+              const isItemOutOfStock = !prod || prod.isOutOfStock || liveStock <= 0;
 
-                <div className="flex-1 flex flex-col justify-between">
-                  <div>
-                    <div className="flex justify-between items-start">
-                      <Link
-                        href={`/product/${item.productSlug}`}
-                        onClick={closeMiniCart}
-                        className="text-xs font-semibold text-brand-dark hover:text-brand-gold line-clamp-1"
-                      >
-                        {item.productName}
-                      </Link>
-                      <button
-                        onClick={() => removeFromCart(item.id)}
-                        className="text-brand-muted hover:text-brand-sale transition-colors p-1"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2 text-[11px] text-brand-muted mt-1">
-                      <span>Color: {item.colorName}</span>
-                      <span>•</span>
-                      <span>Size: {item.size}</span>
-                    </div>
+              return (
+                <div key={item.id} className={`flex gap-4 p-3 rounded border transition-all ${
+                  isItemOutOfStock ? 'bg-rose-50/60 border-rose-200' : 'bg-brand-cream/30 border-brand-border/60'
+                }`}>
+                  <div className="relative w-20 aspect-[3/4] rounded overflow-hidden bg-brand-cream shrink-0">
+                    <Image src={item.image} alt={item.productName} fill unoptimized className={`object-cover ${isItemOutOfStock ? 'opacity-60 grayscale-25' : ''}`} />
+                    {isItemOutOfStock && (
+                      <span className="absolute inset-x-0 bottom-0 bg-rose-600 text-white text-[8px] font-bold text-center py-0.5 uppercase tracking-tighter">
+                        OUT OF STOCK
+                      </span>
+                    )}
                   </div>
 
-                  <div className="flex items-center justify-between mt-3">
-                    {/* Quantity controls */}
-                    <div className="flex items-center border border-brand-border rounded bg-white">
-                      <button
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                        className="p-1 hover:bg-brand-cream text-brand-dark transition-colors"
-                      >
-                        <Minus size={12} />
-                      </button>
-                      <span className="px-2.5 text-xs font-semibold text-brand-dark">{item.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        className="p-1 hover:bg-brand-cream text-brand-dark transition-colors"
-                      >
-                        <Plus size={12} />
-                      </button>
+                  <div className="flex-1 flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start">
+                        <Link
+                          href={`/product/${item.productSlug}`}
+                          onClick={closeMiniCart}
+                          className="text-xs font-semibold text-brand-dark hover:text-brand-gold line-clamp-1"
+                        >
+                          {item.productName}
+                        </Link>
+                        <button
+                          onClick={() => removeFromCart(item.id)}
+                          className="text-brand-muted hover:text-brand-sale transition-colors p-1"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-brand-muted mt-1">
+                        <span>Color: {item.colorName}</span>
+                        <span>•</span>
+                        <span>Size: {item.size}</span>
+                      </div>
+                      {isItemOutOfStock && (
+                        <span className="inline-block mt-1 text-[9px] font-bold text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded border border-rose-200 uppercase tracking-wider">
+                          OUT OF STOCK
+                        </span>
+                      )}
                     </div>
 
-                    <span className="text-xs font-bold text-brand-dark">
-                      NPR {(item.price * item.quantity).toLocaleString()}
-                    </span>
+                    <div className="flex items-center justify-between mt-3">
+                      {/* Quantity controls */}
+                      <div className="flex items-center border border-brand-border rounded bg-white">
+                        <button
+                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                          className="p-1 hover:bg-brand-cream text-brand-dark transition-colors"
+                        >
+                          <Minus size={12} />
+                        </button>
+                        <span className="px-2.5 text-xs font-semibold text-brand-dark">{item.quantity}</span>
+                        <button
+                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                          disabled={isItemOutOfStock}
+                          className="p-1 hover:bg-brand-cream text-brand-dark transition-colors disabled:opacity-30"
+                        >
+                          <Plus size={12} />
+                        </button>
+                      </div>
+
+                      <span className="text-xs font-bold text-brand-dark">
+                        NPR {(item.price * item.quantity).toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -150,24 +172,53 @@ export const MiniCart: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Link
-                href="/cart"
-                onClick={closeMiniCart}
-                className="py-3 px-4 border border-brand-dark text-brand-dark text-center text-xs font-semibold uppercase tracking-wider hover:bg-brand-cream transition-colors"
-              >
-                VIEW BAG
-              </Link>
+            {/* Check if any cart item is out of stock */}
+            {(() => {
+              const hasOutOfStock = cart.some((item) => {
+                const prod = allProds.find((p) => p.id === item.productId || p.slug === item.productSlug);
+                const targetColor = prod?.colors.find((c) => c.name === item.colorName);
+                const liveStock = targetColor?.stock !== undefined ? targetColor.stock : (prod?.sizes[0]?.stock ?? 0);
+                return !prod || prod.isOutOfStock || liveStock <= 0;
+              });
 
-              <Link
-                href="/checkout"
-                onClick={closeMiniCart}
-                className="py-3 px-4 bg-brand-dark text-white text-center text-xs font-semibold uppercase tracking-wider hover:bg-brand-dark/90 transition-colors flex items-center justify-center gap-1"
-              >
-                <span>CHECKOUT</span>
-                <ArrowRight size={14} />
-              </Link>
-            </div>
+              if (hasOutOfStock) {
+                return (
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold text-rose-600 text-center bg-rose-50 p-2 rounded border border-rose-200">
+                      ⚠️ Bag contains OUT OF STOCK items. Please remove them to checkout.
+                    </p>
+                    <Link
+                      href="/cart"
+                      onClick={closeMiniCart}
+                      className="w-full py-3 px-4 bg-rose-600 text-white text-center text-xs font-semibold uppercase tracking-wider block rounded shadow-xs"
+                    >
+                      VIEW & FIX BAG →
+                    </Link>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-2 gap-3">
+                  <Link
+                    href="/cart"
+                    onClick={closeMiniCart}
+                    className="py-3 px-4 border border-brand-dark text-brand-dark text-center text-xs font-semibold uppercase tracking-wider hover:bg-brand-cream transition-colors"
+                  >
+                    VIEW BAG
+                  </Link>
+
+                  <Link
+                    href="/checkout"
+                    onClick={closeMiniCart}
+                    className="py-3 px-4 bg-brand-dark text-white text-center text-xs font-semibold uppercase tracking-wider hover:bg-brand-dark/90 transition-colors flex items-center justify-center gap-1"
+                  >
+                    <span>CHECKOUT</span>
+                    <ArrowRight size={14} />
+                  </Link>
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
