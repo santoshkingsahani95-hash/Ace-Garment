@@ -378,6 +378,12 @@ class DataStore {
           this.cms = JSON.parse(stored);
         } catch (e) {}
       }
+      const storedFonepay = localStorage.getItem('ace_db_fonepay_settings') || sessionStorage.getItem('ace_db_fonepay_settings');
+      if (storedFonepay) {
+        try {
+          this.cms.fonepaySettings = JSON.parse(storedFonepay);
+        } catch (e) {}
+      }
     }
     return this.cms;
   }
@@ -385,6 +391,15 @@ class DataStore {
   updateCMS(newCms: Partial<HomepageCMS>): HomepageCMS {
     const current = this.getCMS();
     this.cms = { ...current, ...newCms };
+    if (newCms.fonepaySettings) {
+      try {
+        localStorage.setItem('ace_db_fonepay_settings', JSON.stringify(newCms.fonepaySettings));
+      } catch (e) {
+        try {
+          sessionStorage.setItem('ace_db_fonepay_settings', JSON.stringify(newCms.fonepaySettings));
+        } catch (err) {}
+      }
+    }
     this.saveAndBroadcast('ace_db_cms', this.cms);
     return this.cms;
   }

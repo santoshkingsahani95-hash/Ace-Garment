@@ -34,12 +34,7 @@ export default function AdminFonepayPage() {
   }, []);
 
   const saveSettingsToDb = (newSettings: FonepaySettings) => {
-    const currentCms = db.getCMS();
-    const updatedCms: HomepageCMS = {
-      ...currentCms,
-      fonepaySettings: newSettings,
-    };
-    db.updateCMS(updatedCms);
+    const updatedCms = db.updateCMS({ fonepaySettings: newSettings });
     setCms(updatedCms);
   };
 
@@ -53,7 +48,7 @@ export default function AdminFonepayPage() {
         const canvas = document.createElement('canvas');
         let width = img.width;
         let height = img.height;
-        const maxDim = 600;
+        const maxDim = 450;
         if (width > maxDim || height > maxDim) {
           if (width > height) {
             height = Math.round((height * maxDim) / width);
@@ -66,22 +61,27 @@ export default function AdminFonepayPage() {
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
+        let finalDataUrl = rawUrl;
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          const compressed = canvas.toDataURL('image/jpeg', 0.85);
-          const next = { ...settings, qrImageUrl: compressed };
-          setSettings(next);
-          saveSettingsToDb(next);
-        } else {
-          const next = { ...settings, qrImageUrl: rawUrl };
-          setSettings(next);
-          saveSettingsToDb(next);
+          finalDataUrl = canvas.toDataURL('image/jpeg', 0.75);
         }
+        setSettings((prev) => {
+          const next = { ...prev, qrImageUrl: finalDataUrl };
+          saveSettingsToDb(next);
+          return next;
+        });
+        setSaveSuccess('QR photo uploaded and saved successfully!');
+        setTimeout(() => setSaveSuccess(''), 4000);
       };
       img.onerror = () => {
-        const next = { ...settings, qrImageUrl: rawUrl };
-        setSettings(next);
-        saveSettingsToDb(next);
+        setSettings((prev) => {
+          const next = { ...prev, qrImageUrl: rawUrl };
+          saveSettingsToDb(next);
+          return next;
+        });
+        setSaveSuccess('QR photo uploaded and saved successfully!');
+        setTimeout(() => setSaveSuccess(''), 4000);
       };
       img.src = rawUrl;
     };
