@@ -32,8 +32,17 @@ export default function CheckoutPage() {
   const [couponCode, setCouponCode] = useState('');
   const [couponStatus, setCouponStatus] = useState<{ valid: boolean; discountAmount: number; message: string } | null>(null);
 
-  // Dynamic Fonepay Settings State (Synced Live from DB)
+  // Dynamic Fonepay Settings State (Synced Live from DB & Admin Panel)
   const [fonepaySettings, setFonepaySettings] = useState<FonepaySettings>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('ace_db_fonepay_settings');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed && parsed.qrImageUrl) return parsed;
+        } catch (e) {}
+      }
+    }
     const cms = db.getCMS();
     return (
       cms.fonepaySettings || {
@@ -95,9 +104,21 @@ export default function CheckoutPage() {
     setCouponStatus(res);
   };
 
-  // Sync Fonepay Settings dynamically with DB updates
+  // Sync Fonepay Settings dynamically with DB updates & Admin Panel
   useEffect(() => {
     const syncSettings = () => {
+      if (typeof window !== 'undefined') {
+        const storedFonepay = localStorage.getItem('ace_db_fonepay_settings');
+        if (storedFonepay) {
+          try {
+            const parsed = JSON.parse(storedFonepay);
+            if (parsed && parsed.qrImageUrl) {
+              setFonepaySettings(parsed);
+              return;
+            }
+          } catch (e) {}
+        }
+      }
       const cms = db.getCMS();
       if (cms.fonepaySettings) {
         setFonepaySettings(cms.fonepaySettings);
@@ -174,9 +195,20 @@ export default function CheckoutPage() {
 
     setIsProcessing(true);
 
-    // Re-sync latest Fonepay settings right before opening payment modal
-    const currentCms = db.getCMS();
-    const activeSettings = currentCms.fonepaySettings || fonepaySettings;
+    // Re-sync latest Fonepay settings from Admin Panel right before opening payment modal
+    let activeSettings = fonepaySettings;
+    if (typeof window !== 'undefined') {
+      const storedFonepay = localStorage.getItem('ace_db_fonepay_settings');
+      if (storedFonepay) {
+        try {
+          const parsed = JSON.parse(storedFonepay);
+          if (parsed && parsed.qrImageUrl) activeSettings = parsed;
+        } catch (e) {}
+      }
+    }
+    if (!activeSettings.qrImageUrl && db.getCMS().fonepaySettings) {
+      activeSettings = db.getCMS().fonepaySettings!;
+    }
     setFonepaySettings(activeSettings);
 
     // Validate live inventory before starting order creation
